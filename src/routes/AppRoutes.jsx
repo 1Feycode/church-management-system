@@ -4,6 +4,7 @@ import Members from '../pages/Members'
 import GroupsAdvanced from '../pages/GroupsAdvanced'
 import Announcements from '../pages/Announcements'
 import Events from '../pages/Events'
+import PrayerRequests from '../pages/PrayerRequests'
 
 function AppRoutes() {
   return (
@@ -13,6 +14,7 @@ function AppRoutes() {
       <Route path="/groups" element={<GroupsAdvanced />} />
       <Route path="/announcements" element={<Announcements />} />
       <Route path="/events" element={<Events />} />
+      <Route path="/prayer-requests" element={<PrayerRequests />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
     </Routes>
   )

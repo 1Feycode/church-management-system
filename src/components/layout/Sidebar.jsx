@@ -25,6 +25,11 @@ function Sidebar() {
             <span style={isActive ? styles.activeLink : styles.link}>Events</span>
           )}
         </NavLink>
+        <NavLink to="/prayer-requests" style={styles.link}>
+          {({ isActive }) => (
+            <span style={isActive ? styles.activeLink : styles.link}>Prayer Requests</span>
+          )}
+        </NavLink>
         <NavLink to="/announcements" style={styles.link}>
           {({ isActive }) => (
             <span style={isActive ? styles.activeLink : styles.link}>Announcements</span>
