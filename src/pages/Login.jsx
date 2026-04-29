@@ -66,14 +66,7 @@ function Login() {
     setSubmitting(false)
   }
 
-  // Still initializing - show form anyway after brief moment
-  // Don't block on loading to avoid blank page
-  if (loading && !user) {
-    // Show the form immediately, redirect will happen via useEffect when ready
-  }
-
-  // Already logged in — redirect is happening via useEffect
-  if (!loading && user) return null
+  // Always show the form — useEffect handles redirect when auth resolves
 
   return (
     <div style={styles.container}>

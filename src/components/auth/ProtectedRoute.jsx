@@ -6,9 +6,8 @@ import { useAuth } from '../../contexts/AuthContext'
  *
  * Props:
  *   requireAdmin  — only admins can access (default false)
- *   requireNoAuth — redirect logged-in users away (used for /login)
  */
-function ProtectedRoute({ children, requireAdmin = false, requireNoAuth = false }) {
+function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, profile, loading } = useAuth()
   const location = useLocation()
 
@@ -20,14 +19,6 @@ function ProtectedRoute({ children, requireAdmin = false, requireNoAuth = false 
         <p style={styles.spinnerText}>Loading...</p>
       </div>
     )
-  }
-
-  // ── Pages that should NOT be accessible when logged in (e.g. /login) ────
-  if (requireNoAuth && user && profile) {
-    return <Navigate to="/dashboard" replace />
-  }
-  if (requireNoAuth && user && !profile) {
-    return <Navigate to="/complete-profile" replace />
   }
 
   // ── Not logged in → send to login, remember where they wanted to go ──────

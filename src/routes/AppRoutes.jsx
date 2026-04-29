@@ -22,15 +22,8 @@ function AppRoutes() {
       <Route path="/" element={<LandingPage />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* Login — redirect away if already logged in */}
-      <Route
-        path="/login"
-        element={
-          <ProtectedRoute requireNoAuth>
-            <Login />
-          </ProtectedRoute>
-        }
-      />
+      {/* Login — public, handles its own redirect if already logged in */}
+      <Route path="/login" element={<Login />} />
 
       {/* Complete profile — only for logged-in users without a profile */}
       <Route
