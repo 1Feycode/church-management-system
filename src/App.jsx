@@ -1,20 +1,39 @@
-import { BrowserRouter } from 'react-router-dom'
+import { BrowserRouter, useLocation } from 'react-router-dom'
+import { AuthProvider } from './contexts/AuthContext'
 import Sidebar from './components/layout/Sidebar'
 import Navbar from './components/layout/Navbar'
 import AppRoutes from './routes/AppRoutes'
 
+function AppLayout() {
+  const location = useLocation()
+  
+  // Pages that don't need sidebar/navbar
+  const authPages = ['/login', '/auth/callback', '/complete-profile', '/']
+  const isAuthPage = authPages.includes(location.pathname) || location.pathname.startsWith('/auth/')
+
+  if (isAuthPage) {
+    return <AppRoutes />
+  }
+
+  return (
+    <div style={styles.container}>
+      <Sidebar />
+      <div style={styles.main}>
+        <Navbar />
+        <div style={styles.content}>
+          <AppRoutes />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
-      <div style={styles.container}>
-        <Sidebar />
-        <div style={styles.main}>
-          <Navbar />
-          <div style={styles.content}>
-            <AppRoutes />
-          </div>
-        </div>
-      </div>
+      <AuthProvider>
+        <AppLayout />
+      </AuthProvider>
     </BrowserRouter>
   )
 }

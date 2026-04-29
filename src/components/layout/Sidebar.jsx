@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../../contexts/AuthContext'
 
 function Sidebar() {
+  const { isAdmin } = useAuth()
+
   return (
     <div style={styles.sidebar}>
       <h2 style={styles.title}>Church System</h2>
@@ -10,16 +13,29 @@ function Sidebar() {
             <span style={isActive ? styles.activeLink : styles.link}>Dashboard</span>
           )}
         </NavLink>
-        <NavLink to="/members" style={styles.link}>
-          {({ isActive }) => (
-            <span style={isActive ? styles.activeLink : styles.link}>Members</span>
-          )}
-        </NavLink>
-        <NavLink to="/groups" style={styles.link}>
-          {({ isActive }) => (
-            <span style={isActive ? styles.activeLink : styles.link}>Groups</span>
-          )}
-        </NavLink>
+        
+        {/* Admin-only links */}
+        {isAdmin && (
+          <>
+            <NavLink to="/members" style={styles.link}>
+              {({ isActive }) => (
+                <span style={isActive ? styles.activeLink : styles.link}>Members</span>
+              )}
+            </NavLink>
+            <NavLink to="/groups" style={styles.link}>
+              {({ isActive }) => (
+                <span style={isActive ? styles.activeLink : styles.link}>Groups</span>
+              )}
+            </NavLink>
+            <NavLink to="/announcements" style={styles.link}>
+              {({ isActive }) => (
+                <span style={isActive ? styles.activeLink : styles.link}>Announcements</span>
+              )}
+            </NavLink>
+          </>
+        )}
+        
+        {/* Member and Admin links */}
         <NavLink to="/events" style={styles.link}>
           {({ isActive }) => (
             <span style={isActive ? styles.activeLink : styles.link}>Events</span>
@@ -33,11 +49,6 @@ function Sidebar() {
         <NavLink to="/bible-studies" style={styles.link}>
           {({ isActive }) => (
             <span style={isActive ? styles.activeLink : styles.link}>Bible Studies</span>
-          )}
-        </NavLink>
-        <NavLink to="/announcements" style={styles.link}>
-          {({ isActive }) => (
-            <span style={isActive ? styles.activeLink : styles.link}>Announcements</span>
           )}
         </NavLink>
       </nav>
