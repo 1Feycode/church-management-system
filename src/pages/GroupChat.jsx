@@ -13,7 +13,6 @@ function GroupChat() {
   const [members, setMembers] = useState([])
   const [loading, setLoading] = useState(true)
   const [text, setText] = useState('')
-  const [sending, setSending] = useState(false)
 
   const bottomRef = useRef(null)
   const inputRef = useRef(null)
@@ -68,7 +67,20 @@ function GroupChat() {
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${groupId}` },
         (payload) => {
-          setMessages(prev => prev.find(m => m.id === payload.new.id) ? prev : [...prev, payload.new])
+          setMessages(prev => {
+            // If this is our own message coming back, replace the optimistic entry
+            if (payload.new.member_id === profile?.id) {
+              const optIdx = prev.findIndex(m => typeof m.id === 'string' && m.id.startsWith('opt-') && m.message === payload.new.message)
+              if (optIdx !== -1) {
+                const next = [...prev]
+                next[optIdx] = payload.new
+                return next
+              }
+            }
+            // Someone else's message — add if not already present
+            if (prev.find(m => m.id === payload.new.id)) return prev
+            return [...prev, payload.new]
+          })
         }
       )
       .on('postgres_changes',
@@ -79,7 +91,7 @@ function GroupChat() {
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [groupId])
+  }, [groupId, profile?.id])
 
   // ── Auto-scroll ───────────────────────────────────────────────────────
   useEffect(() => {
@@ -90,32 +102,37 @@ function GroupChat() {
   async function handleSend(e) {
     e.preventDefault()
     const trimmed = text.trim()
-    if (!trimmed || sending || !profile?.id) return
+    if (!trimmed || !profile?.id) return
 
-    setSending(true)
+    // Clear input immediately — don't wait for the server
     setText('')
+    inputRef.current?.focus()
 
-    const optimisticId = `opt-${Date.now()}`
-    setMessages(prev => [...prev, {
-      id: optimisticId, group_id: parseInt(groupId),
-      member_id: profile.id, message: trimmed, created_at: new Date().toISOString()
-    }])
+    const optimisticId = `opt-${Date.now()}-${Math.random()}`
+    const optimistic = {
+      id: optimisticId,
+      group_id: parseInt(groupId),
+      member_id: profile.id,
+      message: trimmed,
+      created_at: new Date().toISOString(),
+      pending: true
+    }
+    setMessages(prev => [...prev, optimistic])
 
     try {
       const { error } = await supabase.from('group_messages').insert([{
         group_id: parseInt(groupId), member_id: profile.id, message: trimmed
       }])
       if (error) {
+        // Roll back
         setMessages(prev => prev.filter(m => m.id !== optimisticId))
         setText(trimmed)
-        alert('Failed to send: ' + error.message)
+        console.error('Send failed:', error.message)
       }
+      // On success: Realtime will replace the optimistic entry with the real one
     } catch {
       setMessages(prev => prev.filter(m => m.id !== optimisticId))
       setText(trimmed)
-    } finally {
-      setSending(false)
-      inputRef.current?.focus()
     }
   }
 
@@ -212,7 +229,7 @@ function GroupChat() {
                 {!own && msg.showHeader && <div style={s.senderName}>{getMemberName(msg.member_id)}</div>}
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexDirection: own ? 'row-reverse' : 'row' }}>
-                  <div style={{ ...s.bubble, ...(own ? s.bubbleOwn : s.bubbleOther) }}>
+                  <div style={{ ...s.bubble, ...(own ? s.bubbleOwn : s.bubbleOther), opacity: msg.pending ? 0.75 : 1 }}>
                     {msg.message}
                   </div>
                   {canDelete(msg) && (
@@ -220,7 +237,9 @@ function GroupChat() {
                   )}
                 </div>
 
-                <div style={{ ...s.timestamp, textAlign: own ? 'right' : 'left' }}>{formatTime(msg.created_at)}</div>
+                <div style={{ ...s.timestamp, textAlign: own ? 'right' : 'left' }}>
+                  {msg.pending ? '⏳ sending...' : formatTime(msg.created_at)}
+                </div>
               </div>
             </div>
           )
@@ -236,12 +255,12 @@ function GroupChat() {
           onChange={e => setText(e.target.value)}
           placeholder={`Message ${group?.name || 'group'}...`}
           style={s.input}
-          disabled={sending}
           maxLength={1000}
           autoComplete="off"
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) handleSend(e) }}
         />
-        <button type="submit" disabled={!text.trim() || sending}
-          style={{ ...s.sendBtn, opacity: !text.trim() || sending ? 0.5 : 1 }}>
+        <button type="submit" disabled={!text.trim()}
+          style={{ ...s.sendBtn, opacity: !text.trim() ? 0.5 : 1 }}>
           ➤
         </button>
       </form>
