@@ -55,7 +55,7 @@ export default function Navbar() {
             style={{ background: 'none', border: '1.5px solid #e5e7eb', color: '#374151', fontWeight: 600, fontSize: 14, padding: '9px 20px', borderRadius: 10, cursor: 'pointer' }}>
             Sign In
           </button>
-          <button onClick={() => navigate('/login')}
+          <button onClick={() => navigate('/signup')}
             style={{ background: 'linear-gradient(135deg,#7c3aed,#8b5cf6)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 14, padding: '9px 20px', borderRadius: 10, cursor: 'pointer', boxShadow: '0 4px 14px rgba(124,58,237,0.35)' }}>
             Get Started →
           </button>
@@ -85,7 +85,7 @@ export default function Navbar() {
               style={{ flex: 1, border: '1.5px solid #e5e7eb', background: 'none', color: '#374151', fontWeight: 600, fontSize: 14, padding: '11px', borderRadius: 10, cursor: 'pointer' }}>
               Sign In
             </button>
-            <button onClick={() => { setMenuOpen(false); navigate('/login') }}
+            <button onClick={() => { setMenuOpen(false); navigate('/signup') }}
               style={{ flex: 1, background: 'linear-gradient(135deg,#7c3aed,#8b5cf6)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 14, padding: '11px', borderRadius: 10, cursor: 'pointer' }}>
               Get Started
             </button>

@@ -2,24 +2,23 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 
-function Login() {
+function Login({ mode = 'signin' }) {
   const navigate = useNavigate()
   const { signInWithGoogle, signInWithEmail, signUpWithEmail, user, profile, loading } = useAuth()
-  const [isSignUp, setIsSignUp] = useState(false)
+  // Derived from route prop — no state needed
+  const isSignUp = mode === 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
 
-  // Redirect if already logged in
+  // Redirect once auth resolves — role-aware
   useEffect(() => {
-    if (!loading && user) {
-      if (profile) {
-        navigate('/dashboard', { replace: true })
-      } else {
-        navigate('/complete-profile', { replace: true })
-      }
+    if (!loading && user && profile) {
+      navigate('/dashboard', { replace: true })
+    } else if (!loading && user && !profile) {
+      navigate('/complete-profile', { replace: true })
     }
   }, [user, profile, loading, navigate])
 
@@ -48,7 +47,7 @@ function Login() {
             error.message.toLowerCase().includes('already been registered') ||
             error.message.toLowerCase().includes('user already registered')) {
           setError('This email is already registered. Please sign in instead.')
-          setIsSignUp(false) // Switch to sign in mode
+          navigate('/login', { replace: true }) // Switch to sign in route
         } else {
           setError(error.message)
         }
@@ -123,14 +122,17 @@ function Login() {
 
         <div style={styles.footer}>
           <button
-            onClick={() => { setIsSignUp(!isSignUp); setError(''); setMessage('') }}
+            onClick={() => {
+              setError('')
+              setMessage('')
+              navigate(isSignUp ? '/login' : '/signup', { replace: true })
+            }}
             style={styles.toggleButton}
             disabled={submitting}
           >
             {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
-        </div>
-      </div>
+        </div>      </div>
     </div>
   )
 }

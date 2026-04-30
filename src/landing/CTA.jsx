@@ -20,7 +20,7 @@ export default function CTASection() {
             <p style={{ fontSize: 18, color: '#ddd6fe', margin: '0 0 36px', lineHeight: 1.6 }}>
               {CTA.subtitle}
             </p>
-            <button onClick={() => navigate('/login')}
+            <button onClick={() => navigate('/signup')}
               style={{ background: '#fff', border: 'none', color: '#7c3aed', fontWeight: 800, fontSize: 17, padding: '16px 40px', borderRadius: 14, cursor: 'pointer', boxShadow: '0 8px 24px rgba(0,0,0,0.2)', letterSpacing: '-0.2px' }}>
               {CTA.btn}
             </button>

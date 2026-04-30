@@ -36,7 +36,7 @@ export default function Hero() {
           </p>
 
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <button onClick={() => navigate('/login')}
+            <button onClick={() => navigate('/signup')}
               style={{ background: 'linear-gradient(135deg,#7c3aed,#8b5cf6)', border: 'none', color: '#fff', fontWeight: 700, fontSize: 16, padding: '14px 32px', borderRadius: 12, cursor: 'pointer', boxShadow: '0 8px 24px rgba(124,58,237,0.45)', letterSpacing: '-0.2px' }}>
               {HERO.primaryBtn}
             </button>

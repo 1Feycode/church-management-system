@@ -127,6 +127,6 @@ export const FOOTER = {
   copyright: `© ${new Date().getFullYear()} ChurchMS. Built with ❤️ for churches everywhere.`,
   links: [
     { label: 'Sign In', href: '/login' },
-    { label: 'Sign Up', href: '/login' },
+    { label: 'Sign Up', href: '/signup' },
   ],
 }

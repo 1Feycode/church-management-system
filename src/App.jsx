@@ -12,7 +12,7 @@ function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Pages that don't need sidebar/navbar
-  const authPages = ['/login', '/auth/callback', '/complete-profile', '/']
+  const authPages = ['/login', '/signup', '/auth/callback', '/complete-profile', '/']
   const isAuthPage = authPages.includes(location.pathname) || location.pathname.startsWith('/auth/')
 
   if (isAuthPage) {

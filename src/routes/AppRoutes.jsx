@@ -16,19 +16,30 @@ import Notifications from '../pages/Notifications'
 import Profile from '../pages/Profile'
 import MyGroup from '../pages/MyGroup'
 import Unauthorized from '../pages/Unauthorized'
+import { useAuth } from '../contexts/AuthContext'
+
+// Smart root: logged-in users go straight to dashboard
+function RootRedirect() {
+  const { user, profile, loading } = useAuth()
+  if (loading) return null
+  if (user && profile) return <Navigate to="/dashboard" replace />
+  if (user && !profile) return <Navigate to="/complete-profile" replace />
+  return <LandingPage />
+}
 
 function AppRoutes() {
   return (
     <Routes>
 
-      {/* ── Public (no auth needed) ─────────────────────────── */}
-      <Route path="/" element={<LandingPage />} />
+      {/* ── Public ─────────────────────────────────────────── */}
+      <Route path="/" element={<RootRedirect />} />
       <Route path="/auth/callback" element={<AuthCallback />} />
 
-      {/* Login — public, handles its own redirect if already logged in */}
-      <Route path="/login" element={<Login />} />
+      {/* /login → sign-in mode | /signup → sign-up mode */}
+      <Route path="/login" element={<Login mode="signin" />} />
+      <Route path="/signup" element={<Login mode="signup" />} />
 
-      {/* Complete profile — only for logged-in users without a profile */}
+      {/* Complete profile */}
       <Route
         path="/complete-profile"
         element={
@@ -38,7 +49,7 @@ function AppRoutes() {
         }
       />
 
-      {/* ── Member routes (any logged-in user with profile) ─── */}
+      {/* ── Member routes ───────────────────────────────────── */}
       <Route path="/dashboard" element={
         <ProtectedRoute><Dashboard /></ProtectedRoute>
       } />
@@ -75,7 +86,7 @@ function AppRoutes() {
         <ProtectedRoute requireAdmin><Announcements /></ProtectedRoute>
       } />
 
-      {/* ── Catch-all ──────────────────────────────────────── */}
+      {/* ── Misc ────────────────────────────────────────────── */}
       <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<Navigate to="/" replace />} />
 
