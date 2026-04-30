@@ -2,27 +2,33 @@ import { ABOUT } from './content'
 
 export default function About() {
   return (
-    <section id="about" className="bg-gray-50 py-20 px-4 sm:px-6">
-      <div className="max-w-5xl mx-auto">
+    <section id="about" style={{ background: '#0f0c29', padding: '96px 24px' }}>
+      <div style={{ maxWidth: 1100, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 64, flexWrap: 'wrap' }}>
 
-        <div className="text-center mb-12">
-          <span className="inline-block bg-violet-100 text-violet-700 text-sm font-semibold px-4 py-1.5 rounded-full mb-4">
+        {/* Left */}
+        <div style={{ flex: '1 1 340px', minWidth: 0 }}>
+          <div style={{ display: 'inline-block', background: 'rgba(139,92,246,0.2)', color: '#c4b5fd', fontSize: 13, fontWeight: 700, padding: '6px 16px', borderRadius: 100, marginBottom: 20, letterSpacing: '0.5px', textTransform: 'uppercase', border: '1px solid rgba(139,92,246,0.3)' }}>
             {ABOUT.badge}
-          </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-gray-900 mb-5">
+          </div>
+          <h2 style={{ fontSize: 'clamp(28px, 4vw, 42px)', fontWeight: 900, color: '#fff', margin: '0 0 20px', letterSpacing: '-0.5px', lineHeight: 1.15 }}>
             {ABOUT.title}
           </h2>
-          <p className="text-gray-500 text-lg leading-relaxed max-w-2xl mx-auto">
+          <p style={{ fontSize: 17, color: '#9ca3af', lineHeight: 1.8, margin: 0 }}>
             {ABOUT.description}
           </p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        {/* Right: audience cards */}
+        <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {ABOUT.audience.map((a, i) => (
-            <div key={i} className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm text-center">
-              <div className="text-4xl mb-3">{a.icon}</div>
-              <h3 className="font-bold text-gray-900 mb-2">{a.label}</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">{a.desc}</p>
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 16, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 16, padding: '20px 22px', backdropFilter: 'blur(10px)' }}>
+              <div style={{ width: 44, height: 44, borderRadius: 12, background: 'rgba(139,92,246,0.2)', border: '1px solid rgba(139,92,246,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+                {a.icon}
+              </div>
+              <div>
+                <div style={{ color: '#e5e7eb', fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{a.label}</div>
+                <div style={{ color: '#9ca3af', fontSize: 14, lineHeight: 1.5 }}>{a.desc}</div>
+              </div>
             </div>
           ))}
         </div>
