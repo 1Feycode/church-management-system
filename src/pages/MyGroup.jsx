@@ -4,187 +4,184 @@ import { supabase } from '../lib/supabase'
 
 function MyGroup() {
   const { profile } = useAuth()
-  const [group, setGroup] = useState(null)
-  const [leader, setLeader] = useState(null)
-  const [members, setMembers] = useState([])
+  const [groups, setGroups] = useState([])   // all groups this member belongs to
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    async function loadGroup() {
-      if (!profile?.group_id) {
-        setLoading(false)
-        return
-      }
+    async function loadMyGroups() {
+      if (!profile?.id) { setLoading(false); return }
       try {
         setLoading(true)
 
-        const { data: groupData, error: groupError } = await supabase
+        // Get all group_ids this member belongs to
+        const { data: gmRows, error: gmErr } = await supabase
+          .from('group_members')
+          .select('group_id')
+          .eq('member_id', profile.id)
+
+        if (gmErr) throw gmErr
+        if (!gmRows || gmRows.length === 0) { setGroups([]); return }
+
+        const groupIds = gmRows.map(r => r.group_id)
+
+        // Fetch those groups
+        const { data: groupsData, error: gErr } = await supabase
           .from('groups')
           .select('*')
-          .eq('id', profile.group_id)
-          .single()
+          .in('id', groupIds)
+          .order('name')
 
-        if (groupError) throw groupError
-        setGroup(groupData)
+        if (gErr) throw gErr
 
-        const { data: membersData, error: membersError } = await supabase
-          .from('members')
-          .select('id, name, phone, gender, baptism_status')
-          .eq('group_id', profile.group_id)
-          .order('name', { ascending: true })
+        // For each group, fetch its members and leader
+        const enriched = await Promise.all((groupsData || []).map(async group => {
+          const [{ data: gmData }, { data: leaderData }] = await Promise.all([
+            supabase
+              .from('group_members')
+              .select('member_id, members(id, name, gender, baptism_status)')
+              .eq('group_id', group.id),
+            group.leader_id
+              ? supabase.from('members').select('id, name, phone').eq('id', group.leader_id).single()
+              : Promise.resolve({ data: null })
+          ])
 
-        if (membersError) throw membersError
-        setMembers(membersData || [])
+          return {
+            ...group,
+            members: (gmData || []).map(r => r.members).filter(Boolean),
+            leader: leaderData || null
+          }
+        }))
 
-        if (groupData.leader_id) {
-          const { data: leaderData } = await supabase
-            .from('members')
-            .select('id, name, phone')
-            .eq('id', groupData.leader_id)
-            .single()
-          setLeader(leaderData || null)
-        }
+        setGroups(enriched)
       } catch (err) {
-        console.error('Error loading group:', err)
+        console.error('Error loading my groups:', err)
       } finally {
         setLoading(false)
       }
     }
 
-    loadGroup()
-  }, [profile?.group_id, profile?.id])
+    loadMyGroups()
+  }, [profile?.id])
 
-  if (loading) {
-    return <div style={styles.container}><p style={styles.loading}>Loading group...</p></div>
-  }
+  if (loading) return <div style={s.container}><p style={{ color: '#6b7280' }}>Loading your groups...</p></div>
 
-  if (!profile?.group_id || !group) {
+  if (groups.length === 0) {
     return (
-      <div style={styles.container}>
-        <h1 style={styles.title}>👥 My Group</h1>
-        <div style={styles.emptyState}>
-          <div style={styles.emptyIcon}>👥</div>
-          <h2 style={styles.emptyTitle}>Not assigned to a group</h2>
-          <p style={styles.emptyText}>You haven&apos;t been assigned to a group yet. Please contact your church administrator.</p>
+      <div style={s.container}>
+        <h1 style={s.title}>👥 My Groups</h1>
+        <div style={s.emptyState}>
+          <div style={{ fontSize: 56, marginBottom: 16 }}>👥</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, color: '#1f2937', margin: '0 0 8px' }}>Not in any group yet</h2>
+          <p style={{ fontSize: 15, color: '#6b7280', margin: 0 }}>
+            You haven&apos;t been added to a group yet. Contact your church administrator.
+          </p>
         </div>
       </div>
     )
   }
 
   return (
-    <div style={styles.container}>
-      <h1 style={styles.title}>👥 My Group</h1>
+    <div style={s.container}>
+      <h1 style={s.title}>👥 My Groups</h1>
+      <p style={{ color: '#6b7280', marginBottom: 24, fontSize: 14 }}>
+        You are a member of <strong>{groups.length}</strong> group{groups.length !== 1 ? 's' : ''}.
+      </p>
 
-      {/* Group Info Card */}
-      <div style={styles.groupCard}>
-        <div style={styles.groupHeader}>
-          <div style={styles.groupIconWrap}>
-            <span style={styles.groupIcon}>🤝</span>
-          </div>
-          <div>
-            <h2 style={styles.groupName}>{group.name}</h2>
-            {group.description && <p style={styles.groupDesc}>{group.description}</p>}
-          </div>
-        </div>
-
-        <div style={styles.groupStats}>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>{members.length}</span>
-            <span style={styles.statLabel}>Members</span>
-          </div>
-          <div style={styles.statItem}>
-            <span style={styles.statValue}>{leader ? leader.name : '—'}</span>
-            <span style={styles.statLabel}>Group Leader</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Leader Card */}
-      {leader && (
-        <div style={styles.section}>
-          <h2 style={styles.sectionTitle}>👑 Group Leader</h2>
-          <div style={styles.leaderCard}>
-            <div style={styles.memberAvatar}>{leader.name[0].toUpperCase()}</div>
-            <div>
-              <div style={styles.memberName}>{leader.name}</div>
-              {leader.phone && <div style={styles.memberPhone}>📞 {leader.phone}</div>}
-            </div>
-            <span style={styles.leaderBadge}>Leader</span>
-          </div>
-        </div>
-      )}
-
-      {/* Members List */}
-      <div style={styles.section}>
-        <h2 style={styles.sectionTitle}>👥 Group Members ({members.length})</h2>
-        {members.length === 0 ? (
-          <p style={styles.empty}>No members in this group yet.</p>
-        ) : (
-          <div style={styles.membersList}>
-            {members.map(m => (
-              <div key={m.id} style={{ ...styles.memberCard, ...(m.id === profile.id ? styles.memberCardSelf : {}) }}>
-                <div style={{ ...styles.memberAvatar, backgroundColor: m.id === profile.id ? '#4f46e5' : '#8b5cf6' }}>
-                  {m.name[0].toUpperCase()}
-                </div>
-                <div style={styles.memberInfo}>
-                  <div style={styles.memberName}>
-                    {m.name}
-                    {m.id === profile.id && <span style={styles.youBadge}>You</span>}
-                    {m.id === group.leader_id && <span style={styles.leaderBadge}>Leader</span>}
-                  </div>
-                  <div style={styles.memberMeta}>
-                    {m.gender && <span>{m.gender}</span>}
-                    {m.baptism_status && <span style={styles.baptizedBadge}>✓ Baptized</span>}
-                  </div>
-                </div>
+      <div style={s.groupList}>
+        {groups.map(group => (
+          <div key={group.id} style={s.groupCard}>
+            {/* Header */}
+            <div style={s.groupHeader}>
+              <div style={s.groupIconWrap}>🤝</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <h2 style={s.groupName}>{group.name}</h2>
+                {group.description && <p style={s.groupDesc}>{group.description}</p>}
               </div>
-            ))}
+            </div>
+
+            {/* Stats row */}
+            <div style={s.statsRow}>
+              <div style={s.stat}>
+                <span style={s.statVal}>{group.members.length}</span>
+                <span style={s.statLabel}>Members</span>
+              </div>
+              <div style={s.stat}>
+                <span style={s.statVal}>{group.leader?.name || '—'}</span>
+                <span style={s.statLabel}>Leader</span>
+              </div>
+            </div>
+
+            {/* Leader card */}
+            {group.leader && (
+              <div style={s.leaderCard}>
+                <div style={{ ...s.avatar, background: '#f59e0b' }}>
+                  {group.leader.name[0].toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#1f2937' }}>{group.leader.name}</div>
+                  {group.leader.phone && <div style={{ fontSize: 12, color: '#6b7280' }}>📞 {group.leader.phone}</div>}
+                </div>
+                <span style={s.leaderBadge}>👑 Leader</span>
+              </div>
+            )}
+
+            {/* Members list */}
+            <div>
+              <div style={s.sectionLabel}>Members ({group.members.length})</div>
+              <div style={s.membersList}>
+                {group.members.map(m => {
+                  const isMe = m.id === profile.id
+                  const isLeader = m.id === group.leader_id
+                  return (
+                    <div key={m.id} style={{ ...s.memberRow, ...(isMe ? s.memberRowSelf : {}) }}>
+                      <div style={{ ...s.avatar, background: isMe ? '#4f46e5' : '#8b5cf6' }}>
+                        {m.name[0].toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ fontWeight: 600, fontSize: 14, color: '#1f2937' }}>{m.name}</span>
+                          {isMe && <span style={s.youBadge}>You</span>}
+                          {isLeader && <span style={s.leaderBadge}>👑 Leader</span>}
+                        </div>
+                        <div style={{ display: 'flex', gap: 8, marginTop: 2, fontSize: 12, color: '#6b7280' }}>
+                          {m.gender && <span>{m.gender}</span>}
+                          {m.baptism_status && <span style={{ color: '#059669' }}>✓ Baptized</span>}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
-        )}
+        ))}
       </div>
     </div>
   )
 }
 
-const styles = {
-  container: { padding: '20px', maxWidth: '800px' },
-  loading: { color: '#6b7280' },
-  title: { fontSize: '28px', color: '#1f2937', margin: '0 0 24px 0', fontWeight: '700' },
-  // Empty state
-  emptyState: { textAlign: 'center', padding: '60px 20px', backgroundColor: '#fff', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
-  emptyIcon: { fontSize: '56px', marginBottom: '16px' },
-  emptyTitle: { fontSize: '20px', fontWeight: '700', color: '#1f2937', margin: '0 0 8px 0' },
-  emptyText: { fontSize: '15px', color: '#6b7280', margin: 0 },
-  // Group card
-  groupCard: { backgroundColor: '#fff', borderRadius: '12px', padding: '24px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', marginBottom: '24px' },
-  groupHeader: { display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '20px' },
-  groupIconWrap: { width: '56px', height: '56px', borderRadius: '12px', backgroundColor: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  groupIcon: { fontSize: '28px' },
-  groupName: { margin: '0 0 6px 0', fontSize: '22px', fontWeight: '700', color: '#1f2937' },
-  groupDesc: { margin: 0, fontSize: '14px', color: '#6b7280', lineHeight: '1.5' },
-  groupStats: { display: 'flex', gap: '32px', paddingTop: '16px', borderTop: '1px solid #f3f4f6' },
-  statItem: { display: 'flex', flexDirection: 'column', gap: '2px' },
-  statValue: { fontSize: '18px', fontWeight: '700', color: '#1f2937' },
-  statLabel: { fontSize: '12px', color: '#6b7280', fontWeight: '500' },
-  // Sections
-  section: { marginBottom: '24px' },
-  sectionTitle: { fontSize: '18px', fontWeight: '700', color: '#1f2937', margin: '0 0 14px 0' },
-  // Leader card
-  leaderCard: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#fff', borderRadius: '10px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', border: '2px solid #ede9fe' },
-  // Members list
-  membersList: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  memberCard: { display: 'flex', alignItems: 'center', gap: '14px', backgroundColor: '#fff', borderRadius: '10px', padding: '14px 16px', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
-  memberCardSelf: { border: '2px solid #e0e7ff', backgroundColor: '#f5f3ff' },
-  memberAvatar: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#8b5cf6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 },
-  memberInfo: { flex: 1, minWidth: 0 },
-  memberName: { fontSize: '15px', fontWeight: '600', color: '#1f2937', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' },
-  memberPhone: { fontSize: '13px', color: '#6b7280', marginTop: '2px' },
-  memberMeta: { display: 'flex', gap: '8px', marginTop: '4px', fontSize: '12px', color: '#6b7280', flexWrap: 'wrap' },
-  // Badges
-  youBadge: { fontSize: '11px', fontWeight: '600', padding: '2px 8px', borderRadius: '10px', backgroundColor: '#e0e7ff', color: '#3730a3' },
-  leaderBadge: { fontSize: '11px', fontWeight: '600', padding: '2px 8px', borderRadius: '10px', backgroundColor: '#fef3c7', color: '#92400e' },
-  baptizedBadge: { fontSize: '12px', color: '#059669', fontWeight: '500' },
-  empty: { color: '#6b7280', textAlign: 'center', padding: '20px', backgroundColor: '#f9fafb', borderRadius: '8px' }
+const s = {
+  container: { padding: 20, maxWidth: 860 },
+  title: { fontSize: 28, fontWeight: 700, color: '#1f2937', margin: '0 0 8px' },
+  emptyState: { textAlign: 'center', padding: '60px 20px', background: '#fff', borderRadius: 12, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
+  groupList: { display: 'flex', flexDirection: 'column', gap: 24 },
+  groupCard: { background: '#fff', borderRadius: 14, padding: 24, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 16 },
+  groupHeader: { display: 'flex', alignItems: 'flex-start', gap: 14 },
+  groupIconWrap: { width: 48, height: 48, borderRadius: 12, background: '#ede9fe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24, flexShrink: 0 },
+  groupName: { margin: '0 0 4px', fontSize: 20, fontWeight: 700, color: '#1f2937' },
+  groupDesc: { margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 },
+  statsRow: { display: 'flex', gap: 32, paddingTop: 12, borderTop: '1px solid #f3f4f6' },
+  stat: { display: 'flex', flexDirection: 'column', gap: 2 },
+  statVal: { fontSize: 18, fontWeight: 700, color: '#1f2937' },
+  statLabel: { fontSize: 12, color: '#6b7280', fontWeight: 500 },
+  leaderCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px' },
+  sectionLabel: { fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 },
+  membersList: { display: 'flex', flexDirection: 'column', gap: 8 },
+  memberRow: { display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 10, padding: '10px 14px' },
+  memberRowSelf: { background: '#f5f3ff', border: '1.5px solid #ddd6fe' },
+  avatar: { width: 36, height: 36, borderRadius: '50%', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 },
+  youBadge: { fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#e0e7ff', color: '#3730a3' },
+  leaderBadge: { fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e' }
 }
 
 export default MyGroup

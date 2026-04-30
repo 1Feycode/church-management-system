@@ -3,590 +3,424 @@ import { supabase } from '../lib/supabase'
 import Button from '../components/common/Button'
 
 function GroupsAdvanced() {
-  const [groups, setGroups] = useState([])
-  const [members, setMembers] = useState([])
+  const [groups, setGroups] = useState([])       // groups with leader + member list
+  const [allMembers, setAllMembers] = useState([]) // every member (for pickers)
   const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
+
+  // Modals
+  const [showGroupModal, setShowGroupModal] = useState(false)
   const [showLeaderModal, setShowLeaderModal] = useState(false)
+  const [showMembersModal, setShowMembersModal] = useState(false)
   const [showAttendanceModal, setShowAttendanceModal] = useState(false)
+
   const [editingGroup, setEditingGroup] = useState(null)
   const [selectedGroup, setSelectedGroup] = useState(null)
   const [form, setForm] = useState({ name: '', description: '' })
+
+  // Attendance
   const [attendanceDate, setAttendanceDate] = useState(new Date().toISOString().split('T')[0])
   const [attendanceRecords, setAttendanceRecords] = useState({})
 
-  useEffect(() => {
-    loadData()
-  }, [])
+  useEffect(() => { loadData() }, [])
 
+  // ── Load everything ────────────────────────────────────────────────────
   async function loadData() {
     try {
       setLoading(true)
 
-      // Fetch groups
-      const { data: groupsData, error: groupsError } = await supabase
-        .from('groups')
-        .select('*')
+      const [
+        { data: groupsData, error: gErr },
+        { data: membersData, error: mErr },
+        { data: gmData, error: gmErr }
+      ] = await Promise.all([
+        supabase.from('groups').select('*').order('name'),
+        supabase.from('members').select('id, name, phone, gender').order('name'),
+        supabase.from('group_members').select('group_id, member_id')
+      ])
 
-      if (groupsError) {
-        console.error('Error fetching groups:', groupsError)
-        throw groupsError
-      }
+      if (gErr) throw gErr
+      if (mErr) throw mErr
+      if (gmErr) throw gmErr
 
-      // Fetch all members
-      const { data: membersData, error: membersError } = await supabase
-        .from('members')
-        .select('id, name, group_id')
-
-      if (membersError) {
-        console.error('Error fetching members:', membersError)
-        throw membersError
-      }
-
-      // Manually attach leader info to each group
-      const groupsWithLeaders = groupsData.map(group => {
-        const leader = membersData.find(m => m.id === group.leader_id)
-        return {
-          ...group,
-          leader: leader ? { id: leader.id, name: leader.name } : null
-        }
+      // Build a map: group_id → member rows
+      const memberMap = {}
+      ;(gmData || []).forEach(({ group_id, member_id }) => {
+        if (!memberMap[group_id]) memberMap[group_id] = []
+        const member = (membersData || []).find(m => m.id === member_id)
+        if (member) memberMap[group_id].push(member)
       })
 
-      setGroups(groupsWithLeaders || [])
-      setMembers(membersData || [])
-    } catch (error) {
-      console.error('Error loading data:', error)
-      alert('Error loading data: ' + error.message)
+      // Attach leader name + members list to each group
+      const enriched = (groupsData || []).map(g => ({
+        ...g,
+        leader: (membersData || []).find(m => m.id === g.leader_id) || null,
+        members: memberMap[g.id] || []
+      }))
+
+      setGroups(enriched)
+      setAllMembers(membersData || [])
+    } catch (err) {
+      console.error('Error loading data:', err)
+      alert('Error loading data: ' + err.message)
     } finally {
       setLoading(false)
     }
   }
 
-  function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value })
-  }
-
-  async function handleSave() {
-    if (!form.name) {
-      alert('Please enter a group name.')
-      return
-    }
-
+  // ── Group CRUD ─────────────────────────────────────────────────────────
+  async function handleSaveGroup() {
+    if (!form.name.trim()) { alert('Please enter a group name.'); return }
     try {
-      let error
-
-      if (editingGroup) {
-        ;({ error } = await supabase
-          .from('groups')
-          .update({
-            name: form.name,
-            description: form.description
-          })
-          .eq('id', editingGroup.id)
-          .select())
-      } else {
-        ;({ error } = await supabase
-          .from('groups')
-          .insert([{
-            name: form.name,
-            description: form.description
-          }])
-          .select())
-      }
-
-      if (error) {
-        console.error('Error saving group:', error)
-        alert('Error saving group: ' + error.message)
-        return
-      }
-
-      closeModal()
-      await loadData() // Reload all data
-    } catch (error) {
-      console.error('Error saving group:', error)
-      alert('Error saving group: ' + error.message)
+      const payload = { name: form.name.trim(), description: form.description.trim() }
+      const { error } = editingGroup
+        ? await supabase.from('groups').update(payload).eq('id', editingGroup.id)
+        : await supabase.from('groups').insert([payload])
+      if (error) throw error
+      closeGroupModal()
+      await loadData()
+    } catch (err) {
+      alert('Error saving group: ' + err.message)
     }
   }
 
-  function handleEditClick(group) {
+  async function handleDeleteGroup(id) {
+    if (!window.confirm('Delete this group? Members will be removed from it.')) return
+    try {
+      const { error } = await supabase.from('groups').delete().eq('id', id)
+      if (error) throw error
+      setGroups(groups.filter(g => g.id !== id))
+    } catch (err) {
+      alert('Error deleting group: ' + err.message)
+    }
+  }
+
+  function openEditGroup(group) {
     setEditingGroup(group)
     setForm({ name: group.name, description: group.description || '' })
-    setShowModal(true)
+    setShowGroupModal(true)
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm('Are you sure you want to delete this group?')) return
-
-    try {
-      const { error } = await supabase
-        .from('groups')
-        .delete()
-        .eq('id', id)
-
-      if (error) {
-        alert('Error deleting group: ' + error.message)
-        return
-      }
-
-      setGroups(groups.filter((g) => g.id !== id))
-    } catch (error) {
-      alert('Error deleting group: ' + error.message)
-    }
-  }
-
-  function closeModal() {
-    setShowModal(false)
+  function closeGroupModal() {
+    setShowGroupModal(false)
     setEditingGroup(null)
     setForm({ name: '', description: '' })
   }
 
-  // Leader Management
-  function openLeaderModal(group) {
-    setSelectedGroup(group)
-    setShowLeaderModal(true)
-  }
-
+  // ── Leader assignment ──────────────────────────────────────────────────
   async function assignLeader(memberId) {
     try {
       const { error } = await supabase
         .from('groups')
-        .update({ leader_id: memberId })
+        .update({ leader_id: memberId || null })
         .eq('id', selectedGroup.id)
-        .select()
-
-      if (error) {
-        console.error('Error assigning leader:', error)
-        alert('Error assigning leader: ' + error.message)
-        return
-      }
-
+      if (error) throw error
       setShowLeaderModal(false)
       setSelectedGroup(null)
-      await loadData() // Reload all data
-      alert('Leader assigned successfully!')
-    } catch (error) {
-      console.error('Error assigning leader:', error)
-      alert('Error assigning leader: ' + error.message)
+      await loadData()
+    } catch (err) {
+      alert('Error assigning leader: ' + err.message)
     }
   }
 
-  // Attendance Management
+  // ── Member management ──────────────────────────────────────────────────
+  async function addMemberToGroup(memberId) {
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .insert([{ group_id: selectedGroup.id, member_id: memberId }])
+      if (error) throw error
+      await loadData()
+      // Refresh selectedGroup reference
+      setSelectedGroup(prev => ({
+        ...prev,
+        members: [...prev.members, allMembers.find(m => m.id === memberId)]
+      }))
+    } catch (err) {
+      alert('Error adding member: ' + err.message)
+    }
+  }
+
+  async function removeMemberFromGroup(memberId) {
+    try {
+      const { error } = await supabase
+        .from('group_members')
+        .delete()
+        .eq('group_id', selectedGroup.id)
+        .eq('member_id', memberId)
+      if (error) throw error
+      await loadData()
+      setSelectedGroup(prev => ({
+        ...prev,
+        members: prev.members.filter(m => m.id !== memberId)
+      }))
+    } catch (err) {
+      alert('Error removing member: ' + err.message)
+    }
+  }
+
+  // ── Attendance ─────────────────────────────────────────────────────────
   function openAttendanceModal(group) {
     setSelectedGroup(group)
+    const records = {}
+    group.members.forEach(m => { records[m.id] = 'present' })
+    setAttendanceRecords(records)
     setShowAttendanceModal(true)
-    loadAttendanceForGroup(group.id)
-  }
-
-  async function loadAttendanceForGroup(groupId) {
-    try {
-      // Get members in this group
-      const { data: groupMembers, error } = await supabase
-        .from('members')
-        .select('id, name')
-        .eq('group_id', groupId)
-
-      if (error) throw error
-
-      // Initialize attendance records
-      const records = {}
-      groupMembers.forEach(member => {
-        records[member.id] = 'present'
-      })
-      setAttendanceRecords(records)
-    } catch (error) {
-      console.error('Error loading group members:', error)
-    }
-  }
-
-  function toggleAttendance(memberId) {
-    setAttendanceRecords({
-      ...attendanceRecords,
-      [memberId]: attendanceRecords[memberId] === 'present' ? 'absent' : 'present'
-    })
   }
 
   async function saveAttendance() {
     try {
-      const attendanceData = Object.entries(attendanceRecords).map(([memberId, status]) => ({
+      const rows = Object.entries(attendanceRecords).map(([memberId, status]) => ({
         group_id: selectedGroup.id,
         member_id: parseInt(memberId),
         date: attendanceDate,
-        status: status
+        status
       }))
-
-      const { error } = await supabase
-        .from('attendance')
-        .upsert(attendanceData, {
-          onConflict: 'group_id,member_id,date'
-        })
-
-      if (error) {
-        alert('Error saving attendance: ' + error.message)
-        return
-      }
-
-      alert('Attendance saved successfully!')
+      const { error } = await supabase.from('attendance').upsert(rows, { onConflict: 'group_id,member_id,date' })
+      if (error) throw error
+      alert('Attendance saved!')
       setShowAttendanceModal(false)
       setSelectedGroup(null)
       setAttendanceRecords({})
-    } catch (error) {
-      alert('Error saving attendance: ' + error.message)
+    } catch (err) {
+      alert('Error saving attendance: ' + err.message)
     }
   }
 
-  const getGroupMembers = (groupId) => {
-    return members.filter(m => m.group_id === groupId)
-  }
-
-  if (loading) {
-    return (
-      <div style={styles.container}>
-        <p>Loading groups...</p>
-      </div>
-    )
-  }
+  if (loading) return <div style={s.container}><p>Loading groups...</p></div>
 
   return (
-    <div style={styles.container}>
-      <div style={styles.header}>
-        <h1 style={styles.title}>Groups Management</h1>
-        <Button onClick={() => { setEditingGroup(null); setShowModal(true); }}>+ Create Group</Button>
+    <div style={s.container}>
+      <div style={s.header}>
+        <h1 style={s.title}>Groups Management</h1>
+        <Button onClick={() => { setEditingGroup(null); setForm({ name: '', description: '' }); setShowGroupModal(true) }}>
+          + Create Group
+        </Button>
       </div>
 
-      <div style={styles.grid}>
-        {groups.map((group) => {
-          const groupMembers = getGroupMembers(group.id)
-          const memberCount = groupMembers.length
+      {groups.length === 0 && <p style={s.empty}>No groups yet. Create your first group!</p>}
 
-          return (
-            <div key={group.id} style={styles.card}>
-              <div style={styles.cardHeader}>
-                <h3 style={styles.groupName}>{group.name}</h3>
+      <div style={s.grid}>
+        {groups.map(group => (
+          <div key={group.id} style={s.card}>
+            <div style={s.cardTop}>
+              <h3 style={s.groupName}>{group.name}</h3>
+              {group.description && <p style={s.desc}>{group.description}</p>}
+            </div>
+
+            <div style={s.infoBox}>
+              <div style={s.infoRow}>
+                <span style={s.infoLabel}>👥 Members</span>
+                <span style={s.infoVal}>{group.members.length}</span>
               </div>
+              <div style={s.infoRow}>
+                <span style={s.infoLabel}>👑 Leader</span>
+                <span style={s.infoVal}>{group.leader?.name || 'Not assigned'}</span>
+              </div>
+            </div>
 
-              <p style={styles.description}>{group.description}</p>
+            {/* Member chips */}
+            {group.members.length > 0 && (
+              <div style={s.chips}>
+                {group.members.slice(0, 5).map(m => (
+                  <span key={m.id} style={s.chip}>{m.name}</span>
+                ))}
+                {group.members.length > 5 && (
+                  <span style={{ ...s.chip, background: '#e5e7eb', color: '#6b7280' }}>
+                    +{group.members.length - 5} more
+                  </span>
+                )}
+              </div>
+            )}
 
-              <div style={styles.info}>
-                <div style={styles.infoItem}>
-                  <span style={styles.infoLabel}>👥 Members:</span>
-                  <span style={styles.infoValue}>{memberCount}</span>
+            <div style={s.cardActions}>
+              <Button variant="outline" onClick={() => openEditGroup(group)}>Edit</Button>
+              <Button variant="outline" onClick={() => { setSelectedGroup(group); setShowLeaderModal(true) }}>Leader</Button>
+              <Button variant="outline" onClick={() => { setSelectedGroup(group); setShowMembersModal(true) }}>Members</Button>
+              <Button variant="outline" onClick={() => openAttendanceModal(group)}>Attendance</Button>
+              <Button variant="danger" onClick={() => handleDeleteGroup(group.id)}>Delete</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Create / Edit Group Modal ── */}
+      {showGroupModal && (
+        <Modal title={editingGroup ? 'Edit Group' : 'Create Group'} onClose={closeGroupModal}>
+          <Field label="Group Name *">
+            <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Youth Ministry" style={s.input} />
+          </Field>
+          <Field label="Description">
+            <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} rows="3" style={{ ...s.input, resize: 'vertical' }} />
+          </Field>
+          <div style={s.modalActions}>
+            <Button variant="secondary" onClick={closeGroupModal}>Cancel</Button>
+            <Button onClick={handleSaveGroup}>{editingGroup ? 'Update' : 'Save'}</Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Assign Leader Modal ── */}
+      {showLeaderModal && selectedGroup && (
+        <Modal title={`Set Leader — ${selectedGroup.name}`} onClose={() => setShowLeaderModal(false)}>
+          <p style={{ fontSize: 13, color: '#6b7280', marginBottom: 12 }}>
+            Current: <strong>{selectedGroup.leader?.name || 'None'}</strong>
+          </p>
+          <div style={s.scrollList}>
+            {/* Remove leader option */}
+            <div style={s.listRow}>
+              <span style={{ color: '#6b7280', fontStyle: 'italic' }}>— No leader</span>
+              <Button variant="outline" onClick={() => assignLeader(null)}>Remove</Button>
+            </div>
+            {allMembers.map(m => (
+              <div key={m.id} style={s.listRow}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{m.name}</div>
+                  {m.phone && <div style={{ fontSize: 12, color: '#9ca3af' }}>{m.phone}</div>}
                 </div>
-                <div style={styles.infoItem}>
-                  <span style={styles.infoLabel}>👑 Leader:</span>
-                  <span style={styles.infoValue}>
-                    {group.leader?.name || 'Not assigned'}
+                <Button variant={selectedGroup.leader?.id === m.id ? 'primary' : 'outline'} onClick={() => assignLeader(m.id)}>
+                  {selectedGroup.leader?.id === m.id ? '✓ Leader' : 'Set'}
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div style={s.modalActions}>
+            <Button variant="secondary" onClick={() => setShowLeaderModal(false)}>Close</Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Manage Members Modal ── */}
+      {showMembersModal && selectedGroup && (
+        <Modal title={`Members — ${selectedGroup.name}`} onClose={() => setShowMembersModal(false)}>
+          {/* Current members */}
+          <div style={{ marginBottom: 20 }}>
+            <div style={s.sectionLabel}>Current Members ({selectedGroup.members.length})</div>
+            {selectedGroup.members.length === 0
+              ? <p style={{ fontSize: 13, color: '#9ca3af' }}>No members yet.</p>
+              : (
+                <div style={s.scrollList}>
+                  {selectedGroup.members.map(m => (
+                    <div key={m.id} style={s.listRow}>
+                      <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                      <Button variant="danger" onClick={() => removeMemberFromGroup(m.id)}>Remove</Button>
+                    </div>
+                  ))}
+                </div>
+              )
+            }
+          </div>
+
+          {/* Add members */}
+          <div>
+            <div style={s.sectionLabel}>Add Members</div>
+            <div style={s.scrollList}>
+              {allMembers
+                .filter(m => !selectedGroup.members.find(sm => sm.id === m.id))
+                .map(m => (
+                  <div key={m.id} style={s.listRow}>
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                    <Button variant="outline" onClick={() => addMemberToGroup(m.id)}>+ Add</Button>
+                  </div>
+                ))
+              }
+              {allMembers.filter(m => !selectedGroup.members.find(sm => sm.id === m.id)).length === 0 && (
+                <p style={{ fontSize: 13, color: '#9ca3af' }}>All members are already in this group.</p>
+              )}
+            </div>
+          </div>
+
+          <div style={s.modalActions}>
+            <Button variant="secondary" onClick={() => setShowMembersModal(false)}>Close</Button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Attendance Modal ── */}
+      {showAttendanceModal && selectedGroup && (
+        <Modal title={`Attendance — ${selectedGroup.name}`} onClose={() => setShowAttendanceModal(false)}>
+          <Field label="Date">
+            <input type="date" value={attendanceDate} onChange={e => setAttendanceDate(e.target.value)} style={s.input} />
+          </Field>
+          <div style={s.scrollList}>
+            {selectedGroup.members.length === 0
+              ? <p style={{ fontSize: 13, color: '#9ca3af' }}>No members in this group.</p>
+              : selectedGroup.members.map(m => (
+                <div key={m.id} style={s.attendanceRow}>
+                  <label style={s.checkLabel}>
+                    <input
+                      type="checkbox"
+                      checked={attendanceRecords[m.id] === 'present'}
+                      onChange={() => setAttendanceRecords(prev => ({ ...prev, [m.id]: prev[m.id] === 'present' ? 'absent' : 'present' }))}
+                      style={{ width: 18, height: 18 }}
+                    />
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{m.name}</span>
+                  </label>
+                  <span style={{ ...s.badge, background: attendanceRecords[m.id] === 'present' ? '#10b981' : '#ef4444' }}>
+                    {attendanceRecords[m.id] === 'present' ? 'Present' : 'Absent'}
                   </span>
                 </div>
-              </div>
-
-              <div style={styles.cardFooter}>
-                <div style={styles.actions}>
-                  <Button variant="outline" onClick={() => handleEditClick(group)}>Edit</Button>
-                  <Button variant="outline" onClick={() => openLeaderModal(group)}>Set Leader</Button>
-                  <Button variant="outline" onClick={() => openAttendanceModal(group)}>Attendance</Button>
-                  <Button variant="danger" onClick={() => handleDelete(group.id)}>Delete</Button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {groups.length === 0 && (
-        <p style={styles.empty}>No groups found. Create your first group!</p>
-      )}
-
-      {/* Create/Edit Group Modal */}
-      {showModal && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h2 style={styles.modalTitle}>
-              {editingGroup ? 'Edit Group' : 'Create Group'}
-            </h2>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Group Name</label>
-              <input
-                name="name"
-                value={form.name}
-                onChange={handleChange}
-                placeholder="Enter group name"
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Description</label>
-              <textarea
-                name="description"
-                value={form.description}
-                onChange={handleChange}
-                placeholder="Enter group description (optional)"
-                rows="4"
-                style={{ ...styles.input, resize: 'vertical' }}
-              />
-            </div>
-
-            <div style={styles.modalActions}>
-              <Button variant="secondary" onClick={closeModal}>Cancel</Button>
-              <Button onClick={handleSave}>
-                {editingGroup ? 'Update' : 'Save'}
-              </Button>
-            </div>
+              ))
+            }
           </div>
-        </div>
-      )}
-
-      {/* Assign Leader Modal */}
-      {showLeaderModal && selectedGroup && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h2 style={styles.modalTitle}>Assign Leader for {selectedGroup.name}</h2>
-
-            <div style={styles.memberList}>
-              {getGroupMembers(selectedGroup.id).length === 0 ? (
-                <p style={styles.emptyText}>No members in this group yet.</p>
-              ) : (
-                getGroupMembers(selectedGroup.id).map((member) => (
-                  <div key={member.id} style={styles.memberItem}>
-                    <span>{member.name}</span>
-                    <Button
-                      variant="outline"
-                      onClick={() => assignLeader(member.id)}
-                    >
-                      Set as Leader
-                    </Button>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={styles.modalActions}>
-              <Button variant="secondary" onClick={() => setShowLeaderModal(false)}>Close</Button>
-            </div>
+          <div style={s.modalActions}>
+            <Button variant="secondary" onClick={() => setShowAttendanceModal(false)}>Cancel</Button>
+            <Button onClick={saveAttendance}>Save Attendance</Button>
           </div>
-        </div>
-      )}
-
-      {/* Attendance Modal */}
-      {showAttendanceModal && selectedGroup && (
-        <div style={styles.overlay}>
-          <div style={styles.modal}>
-            <h2 style={styles.modalTitle}>Take Attendance - {selectedGroup.name}</h2>
-
-            <div style={styles.field}>
-              <label style={styles.label}>Date</label>
-              <input
-                type="date"
-                value={attendanceDate}
-                onChange={(e) => setAttendanceDate(e.target.value)}
-                style={styles.input}
-              />
-            </div>
-
-            <div style={styles.attendanceList}>
-              {getGroupMembers(selectedGroup.id).length === 0 ? (
-                <p style={styles.emptyText}>No members in this group yet.</p>
-              ) : (
-                getGroupMembers(selectedGroup.id).map((member) => (
-                  <div key={member.id} style={styles.attendanceItem}>
-                    <label style={styles.attendanceLabel}>
-                      <input
-                        type="checkbox"
-                        checked={attendanceRecords[member.id] === 'present'}
-                        onChange={() => toggleAttendance(member.id)}
-                        style={styles.checkbox}
-                      />
-                      <span>{member.name}</span>
-                    </label>
-                    <span style={{
-                      ...styles.statusBadge,
-                      backgroundColor: attendanceRecords[member.id] === 'present' ? '#10b981' : '#ef4444'
-                    }}>
-                      {attendanceRecords[member.id] === 'present' ? 'Present' : 'Absent'}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div style={styles.modalActions}>
-              <Button variant="secondary" onClick={() => setShowAttendanceModal(false)}>Cancel</Button>
-              <Button onClick={saveAttendance}>Save Attendance</Button>
-            </div>
-          </div>
-        </div>
+        </Modal>
       )}
     </div>
   )
 }
 
-const styles = {
-  container: { padding: '20px' },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: '24px'
-  },
-  title: { fontSize: '28px', color: '#1f2937', margin: 0 },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-    gap: '20px'
-  },
-  card: {
-    backgroundColor: '#fff',
-    borderRadius: '10px',
-    padding: '20px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px'
-  },
-  cardHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  },
-  groupName: { margin: 0, fontSize: '18px', color: '#1f2937', fontWeight: '600' },
-  description: {
-    margin: 0,
-    fontSize: '14px',
-    color: '#6b7280',
-    lineHeight: '1.5'
-  },
-  info: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '8px',
-    padding: '12px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '6px'
-  },
-  infoItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    fontSize: '14px'
-  },
-  infoLabel: {
-    color: '#6b7280',
-    fontWeight: '500'
-  },
-  infoValue: {
-    color: '#1f2937',
-    fontWeight: '600'
-  },
-  cardFooter: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-    marginTop: '8px',
-    paddingTop: '12px',
-    borderTop: '1px solid #e5e7eb'
-  },
-  actions: { display: 'flex', gap: '8px', flexWrap: 'wrap' },
-  empty: { textAlign: 'center', color: '#6b7280', marginTop: '40px' },
-  overlay: {
-    position: 'fixed',
-    inset: 0,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1000
-  },
-  modal: {
-    backgroundColor: '#fff',
-    borderRadius: '12px',
-    padding: '30px',
-    width: '100%',
-    maxWidth: '500px',
-    maxHeight: '90vh',
-    overflowY: 'auto',
-    boxShadow: '0 10px 30px rgba(0,0,0,0.2)'
-  },
-  modalTitle: { margin: '0 0 20px 0', fontSize: '20px', color: '#1f2937' },
-  field: { marginBottom: '16px' },
-  label: {
-    display: 'block',
-    marginBottom: '6px',
-    fontSize: '14px',
-    color: '#374151',
-    fontWeight: '500'
-  },
-  input: {
-    width: '100%',
-    padding: '10px 12px',
-    borderRadius: '6px',
-    border: '1px solid #d1d5db',
-    fontSize: '14px',
-    boxSizing: 'border-box',
-    outline: 'none',
-    fontFamily: 'inherit'
-  },
-  modalActions: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-    gap: '10px',
-    marginTop: '24px'
-  },
-  memberList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    maxHeight: '400px',
-    overflowY: 'auto'
-  },
-  memberItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '6px'
-  },
-  attendanceList: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    maxHeight: '400px',
-    overflowY: 'auto',
-    marginTop: '16px'
-  },
-  attendanceItem: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: '12px',
-    backgroundColor: '#f9fafb',
-    borderRadius: '6px'
-  },
-  attendanceLabel: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '10px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    color: '#374151'
-  },
-  checkbox: {
-    width: '18px',
-    height: '18px',
-    cursor: 'pointer'
-  },
-  statusBadge: {
-    padding: '4px 12px',
-    borderRadius: '12px',
-    fontSize: '12px',
-    fontWeight: '600',
-    color: '#fff'
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#6b7280',
-    padding: '20px'
-  }
+// ── Small helpers ──────────────────────────────────────────────────────────
+function Modal({ title, onClose, children }) {
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+      <div style={{ background: '#fff', borderRadius: 14, padding: 28, width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 12px 40px rgba(0,0,0,0.2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#111827' }}>{title}</h2>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 20, cursor: 'pointer', color: '#9ca3af', lineHeight: 1 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, children }) {
+  return (
+    <div style={{ marginBottom: 16 }}>
+      <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 6 }}>{label}</label>
+      {children}
+    </div>
+  )
+}
+
+const s = {
+  container: { padding: 20 },
+  header: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
+  title: { fontSize: 28, color: '#1f2937', margin: 0, fontWeight: 700 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 20 },
+  card: { background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', gap: 12 },
+  cardTop: {},
+  groupName: { margin: '0 0 4px', fontSize: 18, fontWeight: 700, color: '#111827' },
+  desc: { margin: 0, fontSize: 13, color: '#6b7280', lineHeight: 1.5 },
+  infoBox: { background: '#f9fafb', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 6 },
+  infoRow: { display: 'flex', justifyContent: 'space-between', fontSize: 13 },
+  infoLabel: { color: '#6b7280', fontWeight: 500 },
+  infoVal: { color: '#111827', fontWeight: 600 },
+  chips: { display: 'flex', flexWrap: 'wrap', gap: 6 },
+  chip: { background: '#ede9fe', color: '#5b21b6', fontSize: 12, fontWeight: 600, padding: '3px 10px', borderRadius: 20 },
+  cardActions: { display: 'flex', gap: 6, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid #f3f4f6' },
+  empty: { textAlign: 'center', color: '#6b7280', marginTop: 40 },
+  input: { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid #d1d5db', fontSize: 14, boxSizing: 'border-box', outline: 'none', fontFamily: 'inherit' },
+  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 20 },
+  scrollList: { maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 },
+  listRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f9fafb', borderRadius: 8 },
+  sectionLabel: { fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 8 },
+  attendanceRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px', background: '#f9fafb', borderRadius: 8 },
+  checkLabel: { display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' },
+  badge: { padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600, color: '#fff' }
 }
 
 export default GroupsAdvanced
