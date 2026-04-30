@@ -13,16 +13,16 @@ export const useAuth = () => {
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
+  // loading stays true until BOTH auth AND profile are resolved
   const [loading, setLoading] = useState(true)
 
-  // Fetch profile separately - non-blocking
   async function fetchProfile(userId) {
     try {
       const { data } = await supabase
         .from('members')
         .select('*')
         .eq('user_id', userId)
-        .maybeSingle() // won't error if no row found
+        .maybeSingle()
       setProfile(data || null)
     } catch (err) {
       console.error('fetchProfile error:', err)
@@ -31,23 +31,19 @@ export function AuthProvider({ children }) {
   }
 
   useEffect(() => {
-    // Set a safety timeout - if auth doesn't respond in 5s, stop loading
-    const timeout = setTimeout(() => {
-      setLoading(false)
-    }, 5000)
+    const timeout = setTimeout(() => setLoading(false), 5000)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         clearTimeout(timeout)
         if (session?.user) {
           setUser(session.user)
-          // Fetch profile async without blocking auth state
-          fetchProfile(session.user.id)
+          // Wait for profile before marking loading done
+          await fetchProfile(session.user.id)
         } else {
           setUser(null)
           setProfile(null)
         }
-
         setLoading(false)
       }
     )
@@ -77,16 +73,12 @@ export function AuthProvider({ children }) {
       password,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` }
     })
-
-    // Supabase silently succeeds for duplicate emails when confirmation is on.
-    // Detect this: user exists but identities array is empty.
     if (!error && data?.user && data.user.identities?.length === 0) {
       return {
         data: null,
         error: { message: 'This email is already registered. Please sign in instead.' }
       }
     }
-
     return { data, error }
   }
 

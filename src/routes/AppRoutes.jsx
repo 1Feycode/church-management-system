@@ -1,5 +1,12 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { useState } from 'react'
+import { Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
+import { useResponsive } from '../hooks/useResponsive'
+
+import Sidebar from '../components/layout/Sidebar'
+import Navbar from '../components/layout/Navbar'
 import ProtectedRoute from '../components/auth/ProtectedRoute'
+
 import LandingPage from '../pages/LandingPage'
 import Login from '../pages/Login'
 import AuthCallback from '../pages/AuthCallback'
@@ -16,87 +23,81 @@ import Notifications from '../pages/Notifications'
 import Profile from '../pages/Profile'
 import MyGroup from '../pages/MyGroup'
 import Unauthorized from '../pages/Unauthorized'
-import { useAuth } from '../contexts/AuthContext'
 
-// Smart root: always show landing page first.
-// Once auth resolves, redirect logged-in users to their dashboard.
-function RootRedirect() {
+// ── App shell: sidebar + navbar wrapping authenticated pages ──────────────
+function AppShell() {
+  const { isSmall } = useResponsive()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', backgroundColor: '#f3f4f6' }}>
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, marginLeft: isSmall ? 0 : '220px' }}>
+        <Navbar onMenuToggle={() => setSidebarOpen(v => !v)} />
+        <div style={{ padding: '20px', flex: 1 }}>
+          <Outlet />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Root: show landing page; redirect logged-in users to dashboard ─────────
+function RootRoute() {
   const { user, profile, loading } = useAuth()
+  const location = useLocation()
 
-  // Auth still initializing — show landing page (no flash, no blank screen)
+  // While auth is resolving, show landing page (no flash)
   if (loading) return <LandingPage />
 
-  // Logged in with profile → go to dashboard
-  if (user && profile) return <Navigate to="/dashboard" replace />
-
-  // Logged in but no profile yet → complete profile
+  // Already logged in — send to dashboard (or complete-profile)
+  if (user && profile) return <Navigate to="/dashboard" state={{ from: location }} replace />
   if (user && !profile) return <Navigate to="/complete-profile" replace />
 
-  // Not logged in → landing page
   return <LandingPage />
 }
 
+// ── Main route tree ────────────────────────────────────────────────────────
 function AppRoutes() {
   return (
     <Routes>
 
-      {/* ── Public ─────────────────────────────────────────── */}
-      <Route path="/" element={<RootRedirect />} />
-      <Route path="/auth/callback" element={<AuthCallback />} />
-
-      {/* /login → sign-in mode | /signup → sign-up mode */}
+      {/* Public — no shell */}
+      <Route path="/" element={<RootRoute />} />
       <Route path="/login" element={<Login mode="signin" />} />
       <Route path="/signup" element={<Login mode="signup" />} />
-
-      {/* Complete profile */}
-      <Route
-        path="/complete-profile"
-        element={
-          <ProtectedRoute>
-            <CompleteProfile />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* ── Member routes ───────────────────────────────────── */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute><Dashboard /></ProtectedRoute>
-      } />
-      <Route path="/events" element={
-        <ProtectedRoute><Events /></ProtectedRoute>
-      } />
-      <Route path="/prayer-requests" element={
-        <ProtectedRoute><PrayerRequests /></ProtectedRoute>
-      } />
-      <Route path="/bible-studies" element={
-        <ProtectedRoute><BibleStudies /></ProtectedRoute>
-      } />
-      <Route path="/bible-study/:id" element={
-        <ProtectedRoute><BibleStudyDetail /></ProtectedRoute>
-      } />
-      <Route path="/notifications" element={
-        <ProtectedRoute><Notifications /></ProtectedRoute>
-      } />
-      <Route path="/profile" element={
-        <ProtectedRoute><Profile /></ProtectedRoute>
-      } />
-      <Route path="/my-group" element={
-        <ProtectedRoute><MyGroup /></ProtectedRoute>
-      } />
-
-      {/* ── Admin-only routes ───────────────────────────────── */}
-      <Route path="/members" element={
-        <ProtectedRoute requireAdmin><Members /></ProtectedRoute>
-      } />
-      <Route path="/groups" element={
-        <ProtectedRoute requireAdmin><GroupsAdvanced /></ProtectedRoute>
-      } />
-      <Route path="/announcements" element={
-        <ProtectedRoute requireAdmin><Announcements /></ProtectedRoute>
-      } />
-
-      {/* ── Misc ────────────────────────────────────────────── */}
+      <Route path="/auth/callback" element={<AuthCallback />} />
       <Route path="/unauthorized" element={<Unauthorized />} />
+
+      {/* Complete profile — protected but no app shell */}
+      <Route path="/complete-profile" element={
+        <ProtectedRoute><CompleteProfile /></ProtectedRoute>
+      } />
+
+      {/* Authenticated app pages — wrapped in AppShell */}
+      <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/events" element={<Events />} />
+        <Route path="/prayer-requests" element={<PrayerRequests />} />
+        <Route path="/bible-studies" element={<BibleStudies />} />
+        <Route path="/bible-study/:id" element={<BibleStudyDetail />} />
+        <Route path="/notifications" element={<Notifications />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/my-group" element={<MyGroup />} />
+
+        {/* Admin-only */}
+        <Route path="/members" element={
+          <ProtectedRoute requireAdmin><Members /></ProtectedRoute>
+        } />
+        <Route path="/groups" element={
+          <ProtectedRoute requireAdmin><GroupsAdvanced /></ProtectedRoute>
+        } />
+        <Route path="/announcements" element={
+          <ProtectedRoute requireAdmin><Announcements /></ProtectedRoute>
+        } />
+      </Route>
+
+      {/* Catch-all */}
       <Route path="*" element={<Navigate to="/" replace />} />
 
     </Routes>
