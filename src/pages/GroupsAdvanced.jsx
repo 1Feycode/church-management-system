@@ -52,9 +52,6 @@ function GroupsAdvanced() {
         }
       })
 
-      console.log('Groups data:', groupsWithLeaders)
-      console.log('Members data:', membersData)
-
       setGroups(groupsWithLeaders || [])
       setMembers(membersData || [])
     } catch (error) {
@@ -76,10 +73,10 @@ function GroupsAdvanced() {
     }
 
     try {
-      let data, error
+      let error
 
       if (editingGroup) {
-        ;({ data, error } = await supabase
+        ;({ error } = await supabase
           .from('groups')
           .update({
             name: form.name,
@@ -88,7 +85,7 @@ function GroupsAdvanced() {
           .eq('id', editingGroup.id)
           .select())
       } else {
-        ;({ data, error } = await supabase
+        ;({ error } = await supabase
           .from('groups')
           .insert([{
             name: form.name,
@@ -96,9 +93,6 @@ function GroupsAdvanced() {
           }])
           .select())
       }
-
-      console.log('Save data:', data)
-      console.log('Save error:', error)
 
       if (error) {
         console.error('Error saving group:', error)
@@ -154,14 +148,11 @@ function GroupsAdvanced() {
 
   async function assignLeader(memberId) {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('groups')
         .update({ leader_id: memberId })
         .eq('id', selectedGroup.id)
         .select()
-
-      console.log('Assign leader data:', data)
-      console.log('Assign leader error:', error)
 
       if (error) {
         console.error('Error assigning leader:', error)

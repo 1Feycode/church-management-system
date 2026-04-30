@@ -18,9 +18,6 @@ function Groups() {
           .from('groups')
           .select('*')
         
-        console.log('groups data:', data)
-        console.log('groups error:', error)
-        
         if (error) {
           console.error('Error fetching groups:', error)
           return
@@ -70,9 +67,6 @@ function Groups() {
           }])
           .select())
       }
-
-      console.log('save data:', data)
-      console.log('save error:', error)
 
       if (error) {
         console.error('Error saving group:', error)

@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import Table from '../components/common/Table'
 import Button from '../components/common/Button'
 
-const TABLE_HEADERS = ['Name', 'Phone', 'Email', 'Gender', 'Age', 'Baptized', 'Group', 'Actions']
+const TABLE_HEADERS = ['Name', 'Phone', 'Email', 'Gender', 'Age', 'Baptized', 'Group', 'Role', 'Actions']
 
 function Members() {
   const [members, setMembers] = useState([])
@@ -19,7 +19,10 @@ function Members() {
     age: '',
     address: '',
     baptism_status: false,
-    group_id: '' 
+    group_id: '',
+    role: 'member',
+    education_level: '',
+    christian_since: ''
   })
   
   // Search and filter states
@@ -94,7 +97,10 @@ function Members() {
         age: form.age ? Number(form.age) : null,
         address: form.address || null,
         baptism_status: form.baptism_status,
-        group_id: form.group_id ? Number(form.group_id) : null
+        group_id: form.group_id ? Number(form.group_id) : null,
+        role: form.role || 'member',
+        education_level: form.education_level || null,
+        christian_since: form.christian_since || null
       }])
       .select()
 
@@ -125,7 +131,10 @@ function Members() {
       age: member.age ? String(member.age) : '',
       address: member.address || '',
       baptism_status: member.baptism_status || false,
-      group_id: member.group_id ? String(member.group_id) : ''
+      group_id: member.group_id ? String(member.group_id) : '',
+      role: member.role || 'member',
+      education_level: member.education_level || '',
+      christian_since: member.christian_since || ''
     })
     setShowModal(true)
   }
@@ -147,7 +156,10 @@ function Members() {
         age: form.age ? Number(form.age) : null,
         address: form.address || null,
         baptism_status: form.baptism_status,
-        group_id: form.group_id ? Number(form.group_id) : null
+        group_id: form.group_id ? Number(form.group_id) : null,
+        role: form.role || 'member',
+        education_level: form.education_level || null,
+        christian_since: form.christian_since || null
       })
       .eq('id', editingMember.id)
       .select()
@@ -196,7 +208,10 @@ function Members() {
       age: '',
       address: '',
       baptism_status: false,
-      group_id: '' 
+      group_id: '',
+      role: 'member',
+      education_level: '',
+      christian_since: ''
     })
   }
 
@@ -303,6 +318,19 @@ function Members() {
             <td style={styles.td}>{member.baptism_status ? '✓' : '—'}</td>
             <td style={styles.td}>{member.groups?.name || '—'}</td>
             <td style={styles.td}>
+              <span style={{
+                display: 'inline-block',
+                padding: '3px 10px',
+                borderRadius: '10px',
+                fontSize: '12px',
+                fontWeight: '600',
+                backgroundColor: member.role === 'admin' ? '#ede9fe' : '#dbeafe',
+                color: member.role === 'admin' ? '#5b21b6' : '#1e40af'
+              }}>
+                {member.role || 'member'}
+              </span>
+            </td>
+            <td style={styles.td}>
               <div style={styles.actions}>
                 <Button variant="outline" onClick={() => handleEditClick(member)}>Edit</Button>
                 <Button variant="danger" onClick={() => handleDelete(member.id)}>Delete</Button>
@@ -392,17 +420,39 @@ function Members() {
 
               <div style={styles.field}>
                 <label style={styles.label}>Group</label>
-                <select
-                  name="group_id"
-                  value={form.group_id}
-                  onChange={handleChange}
-                  style={styles.input}
-                >
+                <select name="group_id" value={form.group_id} onChange={handleChange} style={styles.input}>
                   <option value="">Select a group</option>
                   {groups.map((g) => (
                     <option key={g.id} value={g.id}>{g.name}</option>
                   ))}
                 </select>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Role</label>
+                <select name="role" value={form.role} onChange={handleChange} style={styles.input}>
+                  <option value="member">Member</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Education Level</label>
+                <select name="education_level" value={form.education_level} onChange={handleChange} style={styles.input}>
+                  <option value="">Select level</option>
+                  <option value="Primary">Primary</option>
+                  <option value="Secondary">Secondary</option>
+                  <option value="Diploma">Diploma</option>
+                  <option value="Bachelor">Bachelor&apos;s Degree</option>
+                  <option value="Master">Master&apos;s Degree</option>
+                  <option value="PhD">PhD</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div style={styles.field}>
+                <label style={styles.label}>Christian Since (Year)</label>
+                <input name="christian_since" value={form.christian_since} onChange={handleChange} placeholder="e.g. 2010" style={styles.input} />
               </div>
             </div>
 

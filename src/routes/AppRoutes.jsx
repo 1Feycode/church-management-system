@@ -13,6 +13,7 @@ import PrayerRequests from '../pages/PrayerRequests'
 import BibleStudies from '../pages/BibleStudies'
 import BibleStudyDetail from '../pages/BibleStudyDetail'
 import Notifications from '../pages/Notifications'
+import Profile from '../pages/Profile'
 
 function AppRoutes() {
   return (
@@ -53,6 +54,9 @@ function AppRoutes() {
       } />
       <Route path="/notifications" element={
         <ProtectedRoute><Notifications /></ProtectedRoute>
+      } />
+      <Route path="/profile" element={
+        <ProtectedRoute><Profile /></ProtectedRoute>
       } />
 
       {/* ── Admin-only routes ───────────────────────────────── */}

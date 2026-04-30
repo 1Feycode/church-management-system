@@ -54,9 +54,6 @@ function PrayerRequests() {
         }
       })
 
-      console.log('Prayer requests data:', requestsWithMembers)
-      console.log('Members data:', membersData)
-
       setPrayerRequests(requestsWithMembers || [])
       setMembers(membersData || [])
     } catch (error) {
@@ -82,7 +79,7 @@ function PrayerRequests() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('prayer_requests')
         .insert([{
           member_id: Number(form.member_id),
@@ -92,9 +89,6 @@ function PrayerRequests() {
           status: 'new'
         }])
         .select()
-
-      console.log('Submit data:', data)
-      console.log('Submit error:', error)
 
       if (error) {
         console.error('Error submitting prayer request:', error)

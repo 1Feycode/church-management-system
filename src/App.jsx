@@ -44,7 +44,7 @@ const styles = {
     minHeight: '100vh'
   },
   main: {
-    marginLeft: '200px',
+    marginLeft: '220px',
     flex: 1
   },
   content: {

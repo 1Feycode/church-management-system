@@ -33,7 +33,6 @@ function BibleStudies() {
         throw error
       }
 
-      console.log('Bible studies data:', data)
       setBibleStudies(data || [])
     } catch (error) {
       console.error('Error loading bible studies:', error)
@@ -59,7 +58,7 @@ function BibleStudies() {
     }
 
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('bible_studies')
         .insert([{
           title: trimmedTitle,
@@ -67,9 +66,6 @@ function BibleStudies() {
           notes: trimmedNotes
         }])
         .select()
-
-      console.log('Submit data:', data)
-      console.log('Submit error:', error)
 
       if (error) {
         console.error('Error publishing bible study:', error)

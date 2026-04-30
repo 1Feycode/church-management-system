@@ -19,9 +19,6 @@ function Announcements() {
           .select('*')
           .order('created_at', { ascending: false })
 
-        console.log('announcements data:', data)
-        console.log('announcements error:', error)
-
         if (error) {
           console.error('Error fetching announcements:', error)
           return
@@ -49,11 +46,12 @@ function Announcements() {
     }
 
     try {
-      let data, error
+      let error
+      let savedData
       
       if (editingAnnouncement) {
         // Edit existing announcement
-        ;({ data, error } = await supabase
+        ;({ data: savedData, error } = await supabase
           .from('announcements')
           .update({
             title: form.title,
@@ -63,7 +61,7 @@ function Announcements() {
           .select())
       } else {
         // Create new announcement
-        ;({ data, error } = await supabase
+        ;({ data: savedData, error } = await supabase
           .from('announcements')
           .insert([{
             title: form.title,
@@ -71,9 +69,6 @@ function Announcements() {
           }])
           .select())
       }
-
-      console.log('save data:', data)
-      console.log('save error:', error)
 
       if (error) {
         console.error('Error saving announcement:', error)
@@ -83,10 +78,10 @@ function Announcements() {
 
       if (editingAnnouncement) {
         // Update in local state
-        setAnnouncements(announcements.map((a) => a.id === editingAnnouncement.id ? data[0] : a))
+        setAnnouncements(announcements.map((a) => a.id === editingAnnouncement.id ? savedData[0] : a))
       } else {
         // Add to local state
-        setAnnouncements([data[0], ...announcements])
+        setAnnouncements([savedData[0], ...announcements])
       }
       
       closeModal()

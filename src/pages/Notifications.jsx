@@ -1,23 +1,25 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/common/Button'
 
 function Notifications() {
   const navigate = useNavigate()
+  const { profile } = useAuth()
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(true)
-  const currentUserId = 1 // Demo: hardcoded user ID
   const [filter, setFilter] = useState('all') // all, unread, read
 
   const loadNotifications = useCallback(async () => {
+    if (!profile?.id) return
     try {
       setLoading(true)
 
       let query = supabase
         .from('notifications')
         .select('*')
-        .eq('user_id', currentUserId)
+        .eq('user_id', profile.id)
         .order('created_at', { ascending: false })
 
       if (filter === 'unread') {
@@ -40,7 +42,7 @@ function Notifications() {
     } finally {
       setLoading(false)
     }
-  }, [filter])
+  }, [filter, profile])
 
   useEffect(() => {
     ;(async () => { await loadNotifications() })()
@@ -67,11 +69,12 @@ function Notifications() {
   }
 
   async function markAllAsRead() {
+    if (!profile?.id) return
     try {
       const { error } = await supabase
         .from('notifications')
         .update({ is_read: true })
-        .eq('user_id', currentUserId)
+        .eq('user_id', profile.id)
         .eq('is_read', false)
 
       if (error) {

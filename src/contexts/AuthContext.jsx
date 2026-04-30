@@ -39,8 +39,6 @@ export function AuthProvider({ children }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         clearTimeout(timeout)
-        console.log('Auth event:', event)
-
         if (session?.user) {
           setUser(session.user)
           // Fetch profile async without blocking auth state

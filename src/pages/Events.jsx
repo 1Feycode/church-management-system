@@ -44,7 +44,6 @@ function Events() {
         throw error
       }
 
-      console.log('Events data:', data)
       setEvents(data || [])
     } catch (error) {
       console.error('Error loading events:', error)
@@ -65,11 +64,11 @@ function Events() {
     }
 
     try {
-      let data, error
+      let error
 
       if (editingEvent) {
         // Update existing event
-        ;({ data, error } = await supabase
+        ;({ error } = await supabase
           .from('events')
           .update({
             title: form.title,
@@ -82,7 +81,7 @@ function Events() {
           .select())
       } else {
         // Create new event
-        ;({ data, error } = await supabase
+        ;({ error } = await supabase
           .from('events')
           .insert([{
             title: form.title,
@@ -93,9 +92,6 @@ function Events() {
           }])
           .select())
       }
-
-      console.log('Save data:', data)
-      console.log('Save error:', error)
 
       if (error) {
         console.error('Error saving event:', error)

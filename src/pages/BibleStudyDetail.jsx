@@ -32,7 +32,6 @@ function BibleStudyDetail() {
         throw error
       }
 
-      console.log('Bible study data:', data)
       setStudy(data)
     } catch (error) {
       console.error('Error loading bible study:', error)
@@ -56,7 +55,6 @@ function BibleStudyDetail() {
         throw commentsError
       }
 
-      console.log('Comments data:', commentsData)
       setComments(commentsData || [])
     } catch (error) {
       console.error('Error loading comments:', error)
@@ -75,7 +73,6 @@ function BibleStudyDetail() {
         throw membersError
       }
 
-      console.log('Members data:', membersData)
       setMembers(membersData || [])
     } catch (error) {
       console.error('Error loading members:', error)
@@ -102,7 +99,7 @@ function BibleStudyDetail() {
       setSubmittingComment(true)
 
       // Insert comment
-      const { data: commentData, error: commentError } = await supabase
+      const { error: commentError } = await supabase
         .from('comments')
         .insert([{
           bible_study_id: Number(id),
@@ -110,9 +107,6 @@ function BibleStudyDetail() {
           comment: trimmedComment
         }])
         .select()
-
-      console.log('Comment submit data:', commentData)
-      console.log('Comment submit error:', commentError)
 
       if (commentError) {
         console.error('Error posting comment:', commentError)
