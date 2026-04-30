@@ -60,24 +60,68 @@ function GroupChat() {
   }, [groupId, profile?.id, isAdmin, navigate])
 
   // ── Realtime subscription ─────────────────────────────────────────────
+  // ── Realtime subscription + polling fallback ──────────────────────────
   useEffect(() => {
     if (!groupId) return
+
+    let lastFetchedAt = new Date().toISOString()
+
+    // Poll every 3 seconds as a reliable fallback
+    const pollInterval = setInterval(async () => {
+      try {
+        const { data } = await supabase
+          .from('group_messages')
+          .select('*')
+          .eq('group_id', parseInt(groupId))
+          .gt('created_at', lastFetchedAt)
+          .order('created_at', { ascending: true })
+
+        if (data && data.length > 0) {
+          lastFetchedAt = data[data.length - 1].created_at
+          setMessages(prev => {
+            let updated = [...prev]
+            data.forEach(newMsg => {
+              // Replace matching optimistic message
+              const optIdx = updated.findIndex(
+                m => typeof m.id === 'string' &&
+                     m.id.startsWith('opt-') &&
+                     m.member_id === newMsg.member_id &&
+                     m.message === newMsg.message
+              )
+              if (optIdx !== -1) {
+                updated[optIdx] = newMsg
+              } else if (!updated.find(m => m.id === newMsg.id)) {
+                updated = [...updated, newMsg]
+              }
+            })
+            return updated
+          })
+        }
+      } catch (err) {
+        console.error('Poll error:', err)
+      }
+    }, 3000)
+
+    // Realtime as the fast path (works when enabled in Supabase dashboard)
     const channel = supabase
       .channel(`group-chat-${groupId}`)
       .on('postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'group_messages', filter: `group_id=eq.${groupId}` },
         (payload) => {
+          lastFetchedAt = payload.new.created_at // keep poll in sync
           setMessages(prev => {
-            // If this is our own message coming back, replace the optimistic entry
             if (payload.new.member_id === profile?.id) {
-              const optIdx = prev.findIndex(m => typeof m.id === 'string' && m.id.startsWith('opt-') && m.message === payload.new.message)
+              const optIdx = prev.findIndex(
+                m => typeof m.id === 'string' &&
+                     m.id.startsWith('opt-') &&
+                     m.message === payload.new.message
+              )
               if (optIdx !== -1) {
                 const next = [...prev]
                 next[optIdx] = payload.new
                 return next
               }
             }
-            // Someone else's message — add if not already present
             if (prev.find(m => m.id === payload.new.id)) return prev
             return [...prev, payload.new]
           })
@@ -90,7 +134,11 @@ function GroupChat() {
         }
       )
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+
+    return () => {
+      clearInterval(pollInterval)
+      supabase.removeChannel(channel)
+    }
   }, [groupId, profile?.id])
 
   // ── Auto-scroll ───────────────────────────────────────────────────────
