@@ -18,12 +18,21 @@ import MyGroup from '../pages/MyGroup'
 import Unauthorized from '../pages/Unauthorized'
 import { useAuth } from '../contexts/AuthContext'
 
-// Smart root: logged-in users go straight to dashboard
+// Smart root: always show landing page first.
+// Once auth resolves, redirect logged-in users to their dashboard.
 function RootRedirect() {
   const { user, profile, loading } = useAuth()
-  if (loading) return null
+
+  // Auth still initializing — show landing page (no flash, no blank screen)
+  if (loading) return <LandingPage />
+
+  // Logged in with profile → go to dashboard
   if (user && profile) return <Navigate to="/dashboard" replace />
+
+  // Logged in but no profile yet → complete profile
   if (user && !profile) return <Navigate to="/complete-profile" replace />
+
+  // Not logged in → landing page
   return <LandingPage />
 }
 
