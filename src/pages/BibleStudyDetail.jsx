@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 
 function BibleStudyDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { profile, isAdmin } = useAuth()
   const [study, setStudy] = useState(null)
   const [loading, setLoading] = useState(true)
   const [fontSize, setFontSize] = useState('medium') // small, medium, large
@@ -14,7 +16,6 @@ function BibleStudyDetail() {
   const [comments, setComments] = useState([])
   const [members, setMembers] = useState([])
   const [commentText, setCommentText] = useState('')
-  const [selectedMemberId, setSelectedMemberId] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
 
   const loadStudy = useCallback(async () => {
@@ -90,8 +91,15 @@ function BibleStudyDetail() {
   async function handleSubmitComment() {
     const trimmedComment = commentText.trim()
 
-    if (!selectedMemberId || !trimmedComment) {
-      alert('Please select a member and write a comment.')
+    // Members post as themselves; admins can also post as themselves
+    const commenterId = profile?.id
+    if (!commenterId) {
+      alert('Could not identify your profile. Please refresh.')
+      return
+    }
+
+    if (!trimmedComment) {
+      alert('Please write a comment before posting.')
       return
     }
 
@@ -103,7 +111,7 @@ function BibleStudyDetail() {
         .from('comments')
         .insert([{
           bible_study_id: Number(id),
-          member_id: Number(selectedMemberId),
+          member_id: commenterId,
           comment: trimmedComment
         }])
         .select()
@@ -114,18 +122,12 @@ function BibleStudyDetail() {
         return
       }
 
-      // Create notification for all members except the commenter
-      // In a real app, you'd notify the study creator or admins
-      // For simplicity, we'll notify the first member (admin) if they're not the commenter
-      const commenterName = getMemberName(Number(selectedMemberId))
+      // Notify other members
+      const commenterName = profile?.name || 'Someone'
       const notificationMessage = `${commenterName} commented on "${study.title}"`
+      const membersToNotify = members.filter(m => m.id !== commenterId)
 
-      // Get all members except the commenter to notify
-      const membersToNotify = members.filter(m => m.id !== Number(selectedMemberId))
-      
       if (membersToNotify.length > 0) {
-        // For simplicity, notify only the first member (could be admin)
-        // In production, you'd have a proper admin/creator system
         const { error: notificationError } = await supabase
           .from('notifications')
           .insert(
@@ -136,18 +138,12 @@ function BibleStudyDetail() {
               is_read: false
             }))
           )
-
         if (notificationError) {
           console.error('Error creating notification:', notificationError)
-          // Don't fail the comment if notification fails
         }
       }
 
-      // Clear form
       setCommentText('')
-      setSelectedMemberId('')
-
-      // Reload comments
       await loadComments()
       alert('Comment posted successfully!')
     } catch (error) {
@@ -158,7 +154,12 @@ function BibleStudyDetail() {
     }
   }
 
-  async function handleDeleteComment(commentId) {
+  async function handleDeleteComment(commentId, commentMemberId) {
+    // Action-level guard: only admin or the comment owner can delete
+    if (!isAdmin && profile?.id !== commentMemberId) {
+      alert('Permission denied: you can only delete your own comments.')
+      return
+    }
     if (!window.confirm('Are you sure you want to delete this comment?')) return
 
     try {
@@ -316,17 +317,9 @@ function BibleStudyDetail() {
             {/* Add Comment Form */}
             <div style={styles.commentForm}>
               <div style={styles.commentFormField}>
-                <label style={styles.commentFormLabel}>Your Name</label>
-                <select
-                  value={selectedMemberId}
-                  onChange={(e) => setSelectedMemberId(e.target.value)}
-                  style={styles.commentFormSelect}
-                >
-                  <option value="">Select your name</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>{member.name}</option>
-                  ))}
-                </select>
+                <label style={styles.commentFormLabel}>
+                  Commenting as: <strong>{profile?.name || 'You'}</strong>
+                </label>
               </div>
 
               <div style={styles.commentFormField}>
@@ -365,13 +358,16 @@ function BibleStudyDetail() {
                       </div>
                       <div style={styles.commentMeta}>
                         <span style={styles.commentDate}>{formatCommentDate(comment.created_at)}</span>
-                        <button
-                          onClick={() => handleDeleteComment(comment.id)}
-                          style={styles.commentDeleteButton}
-                          title="Delete comment"
-                        >
-                          🗑️
-                        </button>
+                        {/* Only admin or comment owner can delete */}
+                        {(isAdmin || profile?.id === comment.member_id) && (
+                          <button
+                            onClick={() => handleDeleteComment(comment.id, comment.member_id)}
+                            style={styles.commentDeleteButton}
+                            title="Delete comment"
+                          >
+                            🗑️
+                          </button>
+                        )}
                       </div>
                     </div>
                     <p style={styles.commentText}>{comment.comment}</p>

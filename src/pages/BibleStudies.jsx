@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/common/Button'
 
 function BibleStudies() {
   const navigate = useNavigate()
+  const { isAdmin } = useAuth()
   const [bibleStudies, setBibleStudies] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -47,6 +49,11 @@ function BibleStudies() {
   }
 
   async function handleSubmit() {
+    // Action-level guard — defensive check even if UI is bypassed
+    if (!isAdmin) {
+      alert('Permission denied: only admins can publish Bible studies.')
+      return
+    }
     // Trim whitespace from inputs
     const trimmedTitle = form.title.trim()
     const trimmedVerses = form.verses.trim()
@@ -83,6 +90,11 @@ function BibleStudies() {
   }
 
   async function handleDelete(id) {
+    // Action-level guard
+    if (!isAdmin) {
+      alert('Permission denied: only admins can delete Bible studies.')
+      return
+    }
     if (!window.confirm('Are you sure you want to delete this Bible study?')) return
 
     try {
@@ -145,7 +157,9 @@ function BibleStudies() {
     <div style={styles.container}>
       <div style={styles.header}>
         <h1 style={styles.title}>📖 Bible Studies</h1>
-        <Button onClick={() => setShowModal(true)}>+ Publish Bible Study</Button>
+        {isAdmin && (
+          <Button onClick={() => setShowModal(true)}>+ Publish Bible Study</Button>
+        )}
       </div>
 
       {/* Search Section */}
@@ -182,9 +196,11 @@ function BibleStudies() {
                   <Button onClick={() => navigate(`/bible-study/${study.id}`)}>
                     📖 Read
                   </Button>
-                  <Button variant="danger" onClick={() => handleDelete(study.id)}>
-                    Delete
-                  </Button>
+                  {isAdmin && (
+                    <Button variant="danger" onClick={() => handleDelete(study.id)}>
+                      Delete
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -202,8 +218,8 @@ function BibleStudies() {
         )}
       </div>
 
-      {/* Publish Bible Study Modal */}
-      {showModal && (
+      {/* Publish Bible Study Modal — admin only */}
+      {isAdmin && showModal && (
         <div style={styles.overlay}>
           <div style={styles.modal}>
             <h2 style={styles.modalTitle}>Publish Bible Study</h2>

@@ -15,6 +15,7 @@ import BibleStudyDetail from '../pages/BibleStudyDetail'
 import Notifications from '../pages/Notifications'
 import Profile from '../pages/Profile'
 import MyGroup from '../pages/MyGroup'
+import Unauthorized from '../pages/Unauthorized'
 
 function AppRoutes() {
   return (
@@ -75,6 +76,7 @@ function AppRoutes() {
       } />
 
       {/* ── Catch-all ──────────────────────────────────────── */}
+      <Route path="/unauthorized" element={<Unauthorized />} />
       <Route path="*" element={<Navigate to="/" replace />} />
 
     </Routes>
