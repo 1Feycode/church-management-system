@@ -1,12 +1,16 @@
+import { useState } from 'react'
 import { BrowserRouter, useLocation } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import Sidebar from './components/layout/Sidebar'
 import Navbar from './components/layout/Navbar'
 import AppRoutes from './routes/AppRoutes'
+import { useResponsive } from './hooks/useResponsive'
 
 function AppLayout() {
   const location = useLocation()
-  
+  const { isSmall } = useResponsive()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   // Pages that don't need sidebar/navbar
   const authPages = ['/login', '/auth/callback', '/complete-profile', '/']
   const isAuthPage = authPages.includes(location.pathname) || location.pathname.startsWith('/auth/')
@@ -17,9 +21,15 @@ function AppLayout() {
 
   return (
     <div style={styles.container}>
-      <Sidebar />
-      <div style={styles.main}>
-        <Navbar />
+      <Sidebar
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+      />
+      <div style={{
+        ...styles.main,
+        marginLeft: isSmall ? 0 : '220px'
+      }}>
+        <Navbar onMenuToggle={() => setSidebarOpen(v => !v)} />
         <div style={styles.content}>
           <AppRoutes />
         </div>
@@ -41,14 +51,19 @@ function App() {
 const styles = {
   container: {
     display: 'flex',
-    minHeight: '100vh'
+    minHeight: '100vh',
+    backgroundColor: '#f3f4f6'
   },
   main: {
-    marginLeft: '220px',
-    flex: 1
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    minWidth: 0,
+    minHeight: '100vh'
   },
   content: {
-    padding: '30px'
+    padding: '20px',
+    flex: 1
   }
 }
 

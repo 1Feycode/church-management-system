@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import Table from '../components/common/Table'
 import Button from '../components/common/Button'
+import { useResponsive } from '../hooks/useResponsive'
 
 const TABLE_HEADERS = ['Name', 'Phone', 'Email', 'Gender', 'Age', 'Baptized', 'Group', 'Role', 'Actions']
 
 function Members() {
+  const { isMobile } = useResponsive()
   const [members, setMembers] = useState([])
   const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
@@ -307,38 +309,61 @@ function Members() {
         </div>
       </div>
 
-      <Table headers={TABLE_HEADERS}>
-        {filteredMembers.map((member) => (
-          <tr key={member.id} style={styles.row}>
-            <td style={styles.td}>{member.name}</td>
-            <td style={styles.td}>{member.phone}</td>
-            <td style={styles.td}>{member.email || '—'}</td>
-            <td style={styles.td}>{member.gender || '—'}</td>
-            <td style={styles.td}>{member.age || '—'}</td>
-            <td style={styles.td}>{member.baptism_status ? '✓' : '—'}</td>
-            <td style={styles.td}>{member.groups?.name || '—'}</td>
-            <td style={styles.td}>
-              <span style={{
-                display: 'inline-block',
-                padding: '3px 10px',
-                borderRadius: '10px',
-                fontSize: '12px',
-                fontWeight: '600',
-                backgroundColor: member.role === 'admin' ? '#ede9fe' : '#dbeafe',
-                color: member.role === 'admin' ? '#5b21b6' : '#1e40af'
-              }}>
-                {member.role || 'member'}
-              </span>
-            </td>
-            <td style={styles.td}>
-              <div style={styles.actions}>
+      {/* Mobile: stacked cards | Desktop: table */}
+      {isMobile ? (
+        <div style={styles.cardList}>
+          {filteredMembers.map(member => (
+            <div key={member.id} style={styles.memberCard}>
+              <div style={styles.memberCardHeader}>
+                <div style={styles.memberCardAvatar}>{member.name[0].toUpperCase()}</div>
+                <div>
+                  <div style={styles.memberCardName}>{member.name}</div>
+                  <div style={styles.memberCardPhone}>{member.phone}</div>
+                </div>
+                <span style={{ ...styles.rolePill, backgroundColor: member.role === 'admin' ? '#ede9fe' : '#dbeafe', color: member.role === 'admin' ? '#5b21b6' : '#1e40af' }}>
+                  {member.role || 'member'}
+                </span>
+              </div>
+              <div style={styles.memberCardBody}>
+                {member.email && <div style={styles.memberCardRow}><span style={styles.memberCardLabel}>Email</span><span>{member.email}</span></div>}
+                {member.gender && <div style={styles.memberCardRow}><span style={styles.memberCardLabel}>Gender</span><span>{member.gender}</span></div>}
+                {member.age && <div style={styles.memberCardRow}><span style={styles.memberCardLabel}>Age</span><span>{member.age}</span></div>}
+                <div style={styles.memberCardRow}><span style={styles.memberCardLabel}>Baptized</span><span>{member.baptism_status ? '✓ Yes' : 'No'}</span></div>
+                {member.groups?.name && <div style={styles.memberCardRow}><span style={styles.memberCardLabel}>Group</span><span>{member.groups.name}</span></div>}
+              </div>
+              <div style={styles.memberCardActions}>
                 <Button variant="outline" onClick={() => handleEditClick(member)}>Edit</Button>
                 <Button variant="danger" onClick={() => handleDelete(member.id)}>Delete</Button>
               </div>
-            </td>
-          </tr>
-        ))}
-      </Table>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <Table headers={TABLE_HEADERS}>
+          {filteredMembers.map((member) => (
+            <tr key={member.id} style={styles.row}>
+              <td style={styles.td}>{member.name}</td>
+              <td style={styles.td}>{member.phone}</td>
+              <td style={styles.td}>{member.email || '—'}</td>
+              <td style={styles.td}>{member.gender || '—'}</td>
+              <td style={styles.td}>{member.age || '—'}</td>
+              <td style={styles.td}>{member.baptism_status ? '✓' : '—'}</td>
+              <td style={styles.td}>{member.groups?.name || '—'}</td>
+              <td style={styles.td}>
+                <span style={{ ...styles.rolePill, backgroundColor: member.role === 'admin' ? '#ede9fe' : '#dbeafe', color: member.role === 'admin' ? '#5b21b6' : '#1e40af' }}>
+                  {member.role || 'member'}
+                </span>
+              </td>
+              <td style={styles.td}>
+                <div style={styles.actions}>
+                  <Button variant="outline" onClick={() => handleEditClick(member)}>Edit</Button>
+                  <Button variant="danger" onClick={() => handleDelete(member.id)}>Delete</Button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </Table>
+      )}
 
       {filteredMembers.length === 0 && members.length > 0 && (
         <p style={styles.empty}>No members match your search criteria.</p>
@@ -568,7 +593,7 @@ const styles = {
   modalTitle: { margin: '0 0 20px 0', fontSize: '20px', color: '#1f2937' },
   formGrid: {
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
     gap: '16px',
     marginBottom: '16px'
   },
@@ -602,7 +627,19 @@ const styles = {
     height: '18px',
     cursor: 'pointer'
   },
-  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' }
+  modalActions: { display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '24px' },
+  // Mobile card list
+  cardList: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  memberCard: { backgroundColor: '#fff', borderRadius: '10px', padding: '16px', boxShadow: '0 2px 6px rgba(0,0,0,0.08)' },
+  memberCardHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' },
+  memberCardAvatar: { width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#8b5cf6', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', fontWeight: '700', flexShrink: 0 },
+  memberCardName: { fontSize: '15px', fontWeight: '700', color: '#1f2937' },
+  memberCardPhone: { fontSize: '13px', color: '#6b7280', marginTop: '2px' },
+  memberCardBody: { display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #f3f4f6' },
+  memberCardRow: { display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: '#374151' },
+  memberCardLabel: { color: '#6b7280', fontWeight: '500' },
+  memberCardActions: { display: 'flex', gap: '8px' },
+  rolePill: { display: 'inline-block', padding: '3px 10px', borderRadius: '10px', fontSize: '12px', fontWeight: '600', marginLeft: 'auto', flexShrink: 0 }
 }
 
 export default Members
