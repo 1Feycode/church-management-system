@@ -6,8 +6,13 @@ import { supabase } from '../lib/supabase'
 function MyGroup() {
   const { profile } = useAuth()
   const navigate = useNavigate()
-  const [groups, setGroups] = useState([])   // all groups this member belongs to
+  const [groups, setGroups] = useState([])
   const [loading, setLoading] = useState(true)
+  const [expandedGroups, setExpandedGroups] = useState({}) // groupId → bool
+
+  function toggleMembers(groupId) {
+    setExpandedGroups(prev => ({ ...prev, [groupId]: !prev[groupId] }))
+  }
 
   useEffect(() => {
     async function loadMyGroups() {
@@ -135,11 +140,28 @@ function MyGroup() {
               </div>
             )}
 
-            {/* Members list */}
+            {/* Members list — collapsible */}
             <div>
-              <div style={s.sectionLabel}>Members ({group.members.length})</div>
+              <button
+                onClick={() => toggleMembers(group.id)}
+                style={s.membersToggle}
+              >
+                <span style={s.sectionLabel}>👥 Members ({group.members.length})</span>
+                <span style={{ fontSize: 12, color: '#8b5cf6', fontWeight: 600 }}>
+                  {expandedGroups[group.id] ? '▲ Hide' : '▼ Show all'}
+                </span>
+              </button>
+
+              {/* Always show yourself + first 2 others */}
               <div style={s.membersList}>
-                {group.members.map(m => {
+                {(expandedGroups[group.id]
+                  ? group.members
+                  : [
+                      // Always show "you" first
+                      ...group.members.filter(m => m.id === profile.id),
+                      ...group.members.filter(m => m.id !== profile.id).slice(0, 2)
+                    ]
+                ).map(m => {
                   const isMe = m.id === profile.id
                   const isLeader = m.id === group.leader_id
                   return (
@@ -161,6 +183,13 @@ function MyGroup() {
                     </div>
                   )
                 })}
+
+                {/* Collapsed summary */}
+                {!expandedGroups[group.id] && group.members.length > 3 && (
+                  <button onClick={() => toggleMembers(group.id)} style={s.showMoreBtn}>
+                    +{group.members.length - 3} more members — tap to expand
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -185,7 +214,9 @@ const s = {
   statVal: { fontSize: 18, fontWeight: 700, color: '#1f2937' },
   statLabel: { fontSize: 12, color: '#6b7280', fontWeight: 500 },
   leaderCard: { display: 'flex', alignItems: 'center', gap: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '12px 16px' },
-  sectionLabel: { fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: 10 },
+  sectionLabel: { fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  membersToggle: { width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', padding: '0 0 10px', marginBottom: 0 },
+  showMoreBtn: { width: '100%', padding: '10px', borderRadius: 8, background: '#f5f3ff', border: '1px dashed #c4b5fd', color: '#7c3aed', fontSize: 13, fontWeight: 600, cursor: 'pointer', textAlign: 'center' },
   membersList: { display: 'flex', flexDirection: 'column', gap: 8 },
   memberRow: { display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 10, padding: '10px 14px' },
   memberRowSelf: { background: '#f5f3ff', border: '1.5px solid #ddd6fe' },
