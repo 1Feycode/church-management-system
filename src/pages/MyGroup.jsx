@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 
 function MyGroup() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const [groups, setGroups] = useState([])   // all groups this member belongs to
   const [loading, setLoading] = useState(true)
 
@@ -111,6 +113,14 @@ function MyGroup() {
               </div>
             </div>
 
+            {/* Chat button */}
+            <button
+              onClick={() => navigate(`/group-chat/${group.id}`)}
+              style={s.chatBtn}
+            >
+              💬 Open Group Chat
+            </button>
+
             {/* Leader card */}
             {group.leader && (
               <div style={s.leaderCard}>
@@ -180,6 +190,7 @@ const s = {
   memberRow: { display: 'flex', alignItems: 'center', gap: 12, background: '#f9fafb', borderRadius: 10, padding: '10px 14px' },
   memberRowSelf: { background: '#f5f3ff', border: '1.5px solid #ddd6fe' },
   avatar: { width: 36, height: 36, borderRadius: '50%', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, flexShrink: 0 },
+  chatBtn: { width: '100%', padding: '11px', borderRadius: 10, background: 'linear-gradient(135deg,#4f46e5,#7c3aed)', border: 'none', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 },
   youBadge: { fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#e0e7ff', color: '#3730a3' },
   leaderBadge: { fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 10, background: '#fef3c7', color: '#92400e' }
 }

@@ -22,6 +22,7 @@ import BibleStudyDetail from '../pages/BibleStudyDetail'
 import Notifications from '../pages/Notifications'
 import Profile from '../pages/Profile'
 import MyGroup from '../pages/MyGroup'
+import GroupChat from '../pages/GroupChat'
 import Unauthorized from '../pages/Unauthorized'
 
 // ── App shell: sidebar + navbar wrapping authenticated pages ──────────────
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/my-group" element={<MyGroup />} />
+        <Route path="/group-chat/:groupId" element={<GroupChat />} />
 
         {/* Admin-only */}
         <Route path="/members" element={

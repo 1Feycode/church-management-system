@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import Button from '../components/common/Button'
 
@@ -31,6 +32,7 @@ function GroupsAdvanced() {
   const [groups, setGroups] = useState([])
   const [allMembers, setAllMembers] = useState([])
   const [loading, setLoading] = useState(true)
+  const navigate = useNavigate()
 
   // Active modal: 'group' | 'leader' | 'members' | 'attendance' | null
   const [modal, setModal] = useState(null)
@@ -286,6 +288,9 @@ function GroupsAdvanced() {
               </button>
               <button style={s.actionBtn} onClick={() => openModal('attendance', group)}>
                 📋 Attendance
+              </button>
+              <button style={{ ...s.actionBtn, background: '#dbeafe', color: '#1e40af' }} onClick={() => navigate(`/group-chat/${group.id}`)}>
+                💬 Chat
               </button>
               <button style={{ ...s.actionBtn, background: '#fee2e2', color: '#991b1b' }} onClick={() => handleDeleteGroup(group.id)}>
                 🗑️ Delete
