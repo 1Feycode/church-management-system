@@ -9,6 +9,7 @@ const NAV_ITEMS = [
   { to: '/announcements', label: 'Announcements', icon: '📢', adminOnly: true },
   { to: '/bible-studies', label: 'Bible Study', icon: '📖', adminOnly: false },
   { to: '/prayer-requests', label: 'Prayer Requests', icon: '🙏', adminOnly: false },
+  { to: '/my-group', label: 'My Group', icon: '👥', memberOnly: true },
   { to: '/notifications', label: 'Notifications', icon: '🔔', adminOnly: false },
   { to: '/profile', label: 'Profile', icon: '👤', adminOnly: false },
 ]
@@ -22,7 +23,11 @@ function Sidebar() {
     navigate('/login')
   }
 
-  const visibleItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin)
+  const visibleItems = NAV_ITEMS.filter(item => {
+    if (item.adminOnly && !isAdmin) return false
+    if (item.memberOnly && isAdmin) return false
+    return true
+  })
 
   return (
     <div style={styles.sidebar}>

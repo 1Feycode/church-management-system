@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
 import Button from '../components/common/Button'
 
 const EVENT_TYPES = [
@@ -13,6 +14,7 @@ const EVENT_TYPES = [
 ]
 
 function Events() {
+  const { isAdmin } = useAuth()
   const [events, setEvents] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -189,10 +191,12 @@ function Events() {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <h1 style={styles.title}>Events & Schedule</h1>
-        <Button onClick={() => { setEditingEvent(null); setShowModal(true); }}>
-          + Create Event
-        </Button>
+        <h1 style={styles.title}>📅 Events & Schedule</h1>
+        {isAdmin && (
+          <Button onClick={() => { setEditingEvent(null); setShowModal(true); }}>
+            + Create Event
+          </Button>
+        )}
       </div>
 
       {/* Filter Section */}
@@ -230,12 +234,12 @@ function Events() {
                     <span style={styles.eventType}>{event.event_type}</span>
                   </div>
                   <div style={styles.actions}>
-                    <Button variant="outline" onClick={() => handleEditClick(event)}>
-                      Edit
-                    </Button>
-                    <Button variant="danger" onClick={() => handleDelete(event.id)}>
-                      Delete
-                    </Button>
+                    {isAdmin && (
+                      <>
+                        <Button variant="outline" onClick={() => handleEditClick(event)}>Edit</Button>
+                        <Button variant="danger" onClick={() => handleDelete(event.id)}>Delete</Button>
+                      </>
+                    )}
                   </div>
                 </div>
 
@@ -274,9 +278,9 @@ function Events() {
                     <span style={styles.eventType}>{event.event_type}</span>
                   </div>
                   <div style={styles.actions}>
-                    <Button variant="danger" onClick={() => handleDelete(event.id)}>
-                      Delete
-                    </Button>
+                    {isAdmin && (
+                      <Button variant="danger" onClick={() => handleDelete(event.id)}>Delete</Button>
+                    )}
                   </div>
                 </div>
 
@@ -303,7 +307,7 @@ function Events() {
       )}
 
       {events.length === 0 && (
-        <p style={styles.empty}>No events found. Create your first event!</p>
+        <p style={styles.empty}>{isAdmin ? 'No events found. Create your first event!' : 'No events found.'}</p>
       )}
 
       {/* Create/Edit Event Modal */}

@@ -14,6 +14,7 @@ import BibleStudies from '../pages/BibleStudies'
 import BibleStudyDetail from '../pages/BibleStudyDetail'
 import Notifications from '../pages/Notifications'
 import Profile from '../pages/Profile'
+import MyGroup from '../pages/MyGroup'
 
 function AppRoutes() {
   return (
@@ -57,6 +58,9 @@ function AppRoutes() {
       } />
       <Route path="/profile" element={
         <ProtectedRoute><Profile /></ProtectedRoute>
+      } />
+      <Route path="/my-group" element={
+        <ProtectedRoute><MyGroup /></ProtectedRoute>
       } />
 
       {/* ── Admin-only routes ───────────────────────────────── */}
