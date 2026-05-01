@@ -40,22 +40,23 @@ function MyGroup() {
 
         if (gErr) throw gErr
 
-        // For each group, fetch its members and leader
+        // For each group, fetch its members and leaders
         const enriched = await Promise.all((groupsData || []).map(async group => {
-          const [{ data: gmData }, { data: leaderData }] = await Promise.all([
+          const [{ data: gmData }, { data: glData }] = await Promise.all([
             supabase
               .from('group_members')
               .select('member_id, members(id, name, gender, baptism_status)')
               .eq('group_id', group.id),
-            group.leader_id
-              ? supabase.from('members').select('id, name, phone').eq('id', group.leader_id).single()
-              : Promise.resolve({ data: null })
+            supabase
+              .from('group_leaders')
+              .select('member_id, members(id, name, phone)')
+              .eq('group_id', group.id)
           ])
 
           return {
             ...group,
             members: (gmData || []).map(r => r.members).filter(Boolean),
-            leader: leaderData || null
+            leaders: (glData || []).map(r => r.members).filter(Boolean)
           }
         }))
 
@@ -113,8 +114,8 @@ function MyGroup() {
                 <span style={s.statLabel}>Members</span>
               </div>
               <div style={s.stat}>
-                <span style={s.statVal}>{group.leader?.name || '—'}</span>
-                <span style={s.statLabel}>Leader</span>
+                <span style={s.statVal}>{group.leaders?.length || 0}</span>
+                <span style={s.statLabel}>Leaders</span>
               </div>
             </div>
 
@@ -126,17 +127,24 @@ function MyGroup() {
               💬 Open Group Chat
             </button>
 
-            {/* Leader card */}
-            {group.leader && (
-              <div style={s.leaderCard}>
-                <div style={{ ...s.avatar, background: '#f59e0b' }}>
-                  {group.leader.name[0].toUpperCase()}
+            {/* Leaders */}
+            {group.leaders && group.leaders.length > 0 && (
+              <div>
+                <div style={s.sectionLabel}>👑 Leaders</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {group.leaders.map(l => (
+                    <div key={l.id} style={s.leaderCard}>
+                      <div style={{ ...s.avatar, background: '#f59e0b' }}>
+                        {l.name[0].toUpperCase()}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: '#1f2937' }}>{l.name}</div>
+                        {l.phone && <div style={{ fontSize: 12, color: '#6b7280' }}>📞 {l.phone}</div>}
+                      </div>
+                      <span style={s.leaderBadge}>👑 Leader</span>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#1f2937' }}>{group.leader.name}</div>
-                  {group.leader.phone && <div style={{ fontSize: 12, color: '#6b7280' }}>📞 {group.leader.phone}</div>}
-                </div>
-                <span style={s.leaderBadge}>👑 Leader</span>
               </div>
             )}
 
@@ -163,7 +171,7 @@ function MyGroup() {
                     ]
                 ).map(m => {
                   const isMe = m.id === profile.id
-                  const isLeader = m.id === group.leader_id
+                  const isLeader = (group.leaders || []).some(l => l.id === m.id)
                   return (
                     <div key={m.id} style={{ ...s.memberRow, ...(isMe ? s.memberRowSelf : {}) }}>
                       <div style={{ ...s.avatar, background: isMe ? '#4f46e5' : '#8b5cf6' }}>

@@ -56,15 +56,18 @@ function GroupsAdvanced() {
       const [
         { data: groupsData, error: gErr },
         { data: membersData, error: mErr },
-        { data: gmData, error: gmErr }
+        { data: gmData, error: gmErr },
+        { data: glData, error: glErr }
       ] = await Promise.all([
         supabase.from('groups').select('*').order('name'),
         supabase.from('members').select('id, name, phone, gender, role').order('name'),
-        supabase.from('group_members').select('group_id, member_id')
+        supabase.from('group_members').select('group_id, member_id'),
+        supabase.from('group_leaders').select('group_id, member_id')
       ])
       if (gErr) throw gErr
       if (mErr) throw mErr
       if (gmErr) throw gmErr
+      if (glErr) throw glErr
 
       const memberMap = {}
       ;(gmData || []).forEach(({ group_id, member_id }) => {
@@ -73,9 +76,17 @@ function GroupsAdvanced() {
         if (m) memberMap[group_id].push(m)
       })
 
+      // Build leaders map: group_id → member[]
+      const leaderMap = {}
+      ;(glData || []).forEach(({ group_id, member_id }) => {
+        if (!leaderMap[group_id]) leaderMap[group_id] = []
+        const m = (membersData || []).find(x => x.id === member_id)
+        if (m) leaderMap[group_id].push(m)
+      })
+
       const enriched = (groupsData || []).map(g => ({
         ...g,
-        leader: (membersData || []).find(m => m.id === g.leader_id) || null,
+        leaders: leaderMap[g.id] || [],
         members: memberMap[g.id] || []
       }))
 
@@ -130,18 +141,33 @@ function GroupsAdvanced() {
     } catch (err) { alert('Error: ' + err.message) }
   }
 
-  // ── Leader ─────────────────────────────────────────────────────────────
-  async function assignLeader(memberId) {
+  // ── Leaders (multi, max 7) ─────────────────────────────────────────────
+  async function toggleLeader(memberId) {
+    const currentLeaders = selectedGroup.leaders || []
+    const isLeader = currentLeaders.some(l => l.id === memberId)
+
+    if (!isLeader && currentLeaders.length >= 7) {
+      alert('Maximum 7 leaders per group.')
+      return
+    }
+
     try {
-      const { error } = await supabase.from('groups').update({ leader_id: memberId || null }).eq('id', selectedGroup.id)
-      if (error) throw error
-      await loadData()
-      // Refresh selectedGroup so modal updates immediately
-      setSelectedGroup(prev => ({
-        ...prev,
-        leader_id: memberId,
-        leader: memberId ? allMembers.find(m => m.id === memberId) : null
-      }))
+      if (isLeader) {
+        const { error } = await supabase.from('group_leaders')
+          .delete().eq('group_id', selectedGroup.id).eq('member_id', memberId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('group_leaders')
+          .insert([{ group_id: selectedGroup.id, member_id: memberId }])
+        if (error) throw error
+      }
+
+      const updatedLeaders = isLeader
+        ? currentLeaders.filter(l => l.id !== memberId)
+        : [...currentLeaders, allMembers.find(m => m.id === memberId)]
+
+      setSelectedGroup(prev => ({ ...prev, leaders: updatedLeaders }))
+      setGroups(gs => gs.map(g => g.id === selectedGroup.id ? { ...g, leaders: updatedLeaders } : g))
     } catch (err) { alert('Error: ' + err.message) }
   }
 
@@ -242,8 +268,8 @@ function GroupsAdvanced() {
               </div>
               <div style={s.statDivider} />
               <div style={s.stat}>
-                <span style={{ ...s.statNum, fontSize: 14, fontWeight: 600 }}>{group.leader?.name || '—'}</span>
-                <span style={s.statLabel}>Leader</span>
+                <span style={{ ...s.statNum, fontSize: 22 }}>{group.leaders?.length || 0}</span>
+                <span style={s.statLabel}>Leaders</span>
               </div>
             </div>
 
@@ -266,12 +292,15 @@ function GroupsAdvanced() {
               </div>
             )}
 
-            {/* Leader badge */}
-            {group.leader && (
-              <div style={s.leaderBadge}>
-                <span style={{ fontSize: 14 }}>👑</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>{group.leader.name}</span>
-                <span style={{ fontSize: 12, color: '#b45309' }}>· Leader</span>
+            {/* Leaders badges */}
+            {group.leaders && group.leaders.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {group.leaders.map(l => (
+                  <div key={l.id} style={s.leaderBadge}>
+                    <span style={{ fontSize: 13 }}>👑</span>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>{l.name}</span>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -316,30 +345,37 @@ function GroupsAdvanced() {
         </Modal>
       )}
 
-      {/* ── Assign Leader Modal ── */}
+      {/* ── Assign Leaders Modal (multi, max 7) ── */}
       {modal === 'leader' && selectedGroup && (
-        <Modal title={`Set Leader — ${selectedGroup.name}`} onClose={closeModal}>
+        <Modal title={`Leaders — ${selectedGroup.name}`} onClose={closeModal}>
           <div style={s.currentInfo}>
-            <span style={{ fontSize: 13, color: '#6b7280' }}>Current leader:</span>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1f2937', marginLeft: 6 }}>
-              {selectedGroup.leader?.name || 'None assigned'}
+            <span style={{ fontSize: 13, color: '#6b7280' }}>
+              {selectedGroup.leaders?.length || 0} / 7 leaders assigned
             </span>
+            {selectedGroup.leaders?.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {selectedGroup.leaders.map(l => (
+                  <span key={l.id} style={{ ...s.activeBadge, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    👑 {l.name}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
+          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 12px' }}>
+            Click a member to toggle them as leader. Max 7 leaders per group.
+          </p>
           <div style={s.searchWrap}>
             <input value={memberSearch} onChange={e => setMemberSearch(e.target.value)} placeholder="🔍 Search members..." style={s.searchInput} />
           </div>
           <div style={s.scrollList}>
-            <div style={s.listRow} onClick={() => assignLeader(null)}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ ...s.listAvatar, background: '#e5e7eb', color: '#9ca3af' }}>—</div>
-                <span style={{ fontSize: 14, color: '#9ca3af', fontStyle: 'italic' }}>Remove leader</span>
-              </div>
-              {!selectedGroup.leader && <span style={s.activeBadge}>Current</span>}
-            </div>
             {filteredAllMembers.map(m => {
-              const isLeader = selectedGroup.leader?.id === m.id
+              const isLeader = (selectedGroup.leaders || []).some(l => l.id === m.id)
+              const atMax = (selectedGroup.leaders || []).length >= 7
               return (
-                <div key={m.id} style={{ ...s.listRow, ...(isLeader ? s.listRowActive : {}) }} onClick={() => assignLeader(m.id)}>
+                <div key={m.id}
+                  style={{ ...s.listRow, ...(isLeader ? s.listRowActive : {}), opacity: !isLeader && atMax ? 0.45 : 1, cursor: !isLeader && atMax ? 'not-allowed' : 'pointer' }}
+                  onClick={() => (!isLeader && atMax) ? null : toggleLeader(m.id)}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <div style={{ ...s.listAvatar, background: isLeader ? '#f59e0b' : '#8b5cf6' }}>{m.name[0].toUpperCase()}</div>
                     <div>
@@ -347,7 +383,10 @@ function GroupsAdvanced() {
                       {m.phone && <div style={{ fontSize: 12, color: '#9ca3af' }}>{m.phone}</div>}
                     </div>
                   </div>
-                  {isLeader ? <span style={s.activeBadge}>👑 Leader</span> : <span style={s.setBtn}>Set</span>}
+                  {isLeader
+                    ? <span style={{ ...s.activeBadge, background: '#fef3c7', color: '#92400e' }}>👑 Remove</span>
+                    : <span style={s.setBtn}>+ Leader</span>
+                  }
                 </div>
               )
             })}

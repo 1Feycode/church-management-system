@@ -38,39 +38,43 @@ function Members() {
       try {
         setLoading(true)
 
-        // Fetch members without embedded groups to avoid relationship ambiguity
-        const { data: membersData, error: membersError } = await supabase
-          .from('members')
-          .select('*')
+        const [
+          { data: membersData, error: membersError },
+          { data: groupsData, error: groupsError },
+          { data: gmData, error: gmError }
+        ] = await Promise.all([
+          supabase.from('members').select('*'),
+          supabase.from('groups').select('id, name'),
+          supabase.from('group_members').select('member_id, group_id')
+        ])
 
         if (membersError) throw membersError
-
-        // Fetch groups separately
-        const { data: groupsData, error: groupsError } = await supabase
-          .from('groups')
-          .select('id, name')
-
         if (groupsError) throw groupsError
+        if (gmError) throw gmError
 
-        // Manually attach group name to each member
-        const membersWithGroups = membersData.map(member => {
-          const group = groupsData.find(g => g.id === member.group_id)
-          return {
-            ...member,
-            groups: group ? { name: group.name } : null
-          }
+        // Build member_id → group names[] map from group_members (source of truth)
+        const memberGroupMap = {}
+        ;(gmData || []).forEach(({ member_id, group_id }) => {
+          if (!memberGroupMap[member_id]) memberGroupMap[member_id] = []
+          const g = (groupsData || []).find(x => x.id === group_id)
+          if (g) memberGroupMap[member_id].push(g)
         })
 
-        setMembers(membersWithGroups || [])
-        setGroups(groupsData || [])
+        const membersWithGroups = (membersData || []).map(member => ({
+          ...member,
+          memberGroups: memberGroupMap[member.id] || [],
+          // Keep first group for display compat
+          groups: memberGroupMap[member.id]?.[0] ? { name: memberGroupMap[member.id].map(g => g.name).join(', ') } : null
+        }))
 
+        setMembers(membersWithGroups)
+        setGroups(groupsData || [])
       } catch (error) {
         console.error('Error loading data:', error)
       } finally {
         setLoading(false)
       }
     }
-
     loadData()
   }, [])
 
@@ -111,10 +115,20 @@ function Members() {
       return
     }
 
-    // Manually attach group name
+    const newMemberId = data[0].id
+
+    // Sync to group_members (source of truth)
+    if (form.group_id) {
+      await supabase.from('group_members').upsert(
+        [{ group_id: Number(form.group_id), member_id: newMemberId }],
+        { onConflict: 'group_id,member_id' }
+      )
+    }
+
     const group = groups.find(g => g.id === data[0].group_id)
     const memberWithGroup = {
       ...data[0],
+      memberGroups: group ? [group] : [],
       groups: group ? { name: group.name } : null
     }
 
@@ -148,6 +162,9 @@ function Members() {
       return
     }
 
+    const newGroupId = form.group_id ? Number(form.group_id) : null
+    const oldGroupId = editingMember.group_id || null
+
     const { data, error } = await supabase
       .from('members')
       .update({
@@ -158,7 +175,7 @@ function Members() {
         age: form.age ? Number(form.age) : null,
         address: form.address || null,
         baptism_status: form.baptism_status,
-        group_id: form.group_id ? Number(form.group_id) : null,
+        group_id: newGroupId,
         role: form.role || 'member',
         education_level: form.education_level || null,
         christian_since: form.christian_since || null
@@ -171,10 +188,24 @@ function Members() {
       return
     }
 
-    // Manually attach group name
+    // Sync group_members: remove old group entry, add new one
+    if (oldGroupId && oldGroupId !== newGroupId) {
+      await supabase.from('group_members')
+        .delete()
+        .eq('group_id', oldGroupId)
+        .eq('member_id', editingMember.id)
+    }
+    if (newGroupId && newGroupId !== oldGroupId) {
+      await supabase.from('group_members').upsert(
+        [{ group_id: newGroupId, member_id: editingMember.id }],
+        { onConflict: 'group_id,member_id' }
+      )
+    }
+
     const group = groups.find(g => g.id === data[0].group_id)
     const memberWithGroup = {
       ...data[0],
+      memberGroups: group ? [group] : [],
       groups: group ? { name: group.name } : null
     }
 
@@ -228,8 +259,8 @@ function Members() {
     // Gender filter
     const matchesGender = filterGender === '' || member.gender === filterGender
 
-    // Group filter
-    const matchesGroup = filterGroup === '' || String(member.group_id) === filterGroup
+    // Group filter — check group_members (source of truth)
+    const matchesGroup = filterGroup === '' || (member.memberGroups || []).some(g => String(g.id) === filterGroup)
 
     // Baptized filter
     const matchesBaptized = filterBaptized === '' || 
